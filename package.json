@@ -18,6 +18,7 @@
     "dev": "tsx src/bin/index.ts",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write .",
+    "typecheck": "tsc --noEmit",
     "prepare": "husky",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
