@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
-import { init } from '../commands/init.js';
+import { backend } from '../commands/backend.js';
 
-init();
+const command = process.argv[2];
+
+if (command === 'backend') {
+  backend();
+} else {
+  console.log('Unknown command');
+}
