@@ -1,11 +1,11 @@
-import inquirer from "inquirer";
+import inquirer from 'inquirer';
 
 export async function init() {
   const answers = await inquirer.prompt([
     {
-      type: "input",
-      name: "projectName",
-      message: "Enter project name:"
+      type: 'input',
+      name: 'projectName',
+      message: 'Enter project name:'
     }
   ]);
 

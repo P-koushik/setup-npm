@@ -1,5 +1,5 @@
 #!/usr/bin/env node
 
-import { init } from "../commands/init.js";
+import { init } from '../commands/init.js';
 
 init();
