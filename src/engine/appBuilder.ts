@@ -7,6 +7,7 @@ import {
   resolveTemplateRoot,
   validateTemplateDirectory
 } from './validators/template.js';
+import { validateAppIntegrationOutput } from './validators/post-setup.js';
 
 const templatesRoot = resolveTemplateRoot(
   [
@@ -65,6 +66,7 @@ export async function buildAppIntegration(config: AppConfig) {
       createdFiles.push(path.relative(process.cwd(), destination));
     }
 
+    await validateAppIntegrationOutput(config, destinationDir);
     printSummary(config, createdFiles, skippedFiles, destinationDir);
     spinner.succeed('App integration added successfully 🚀');
   } catch (error: unknown) {

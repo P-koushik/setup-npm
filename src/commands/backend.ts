@@ -1,5 +1,10 @@
 import inquirer from 'inquirer';
 import { buildBackend } from '../engine/backendBuilder.js';
+import {
+  ensureJavaPreflight,
+  ensureNodePreflight,
+  ensurePythonPreflight
+} from '../engine/validators/preflight.js';
 import { BackendConfig } from '../types/backend-config.js';
 import {
   hasFlag,
@@ -17,6 +22,7 @@ import {
 export async function backend(preset?: Record<string, unknown>) {
   try {
     const config = await resolveBackendConfig(preset);
+    await runBackendPreflight(config);
 
     await beginRun(process.cwd(), {
       command: 'backend',
@@ -47,6 +53,22 @@ export async function backend(preset?: Record<string, unknown>) {
 
     console.error('❌ Something went wrong:', error);
     process.exit(1);
+  }
+}
+
+async function runBackendPreflight(config: BackendConfig) {
+  if (config.backendType === 'express' || config.backendType === 'nestjs') {
+    await ensureNodePreflight();
+    return;
+  }
+
+  if (config.backendType === 'fastapi' || config.backendType === 'django') {
+    await ensurePythonPreflight();
+    return;
+  }
+
+  if (config.backendType === 'springboot') {
+    await ensureJavaPreflight();
   }
 }
 

@@ -4,6 +4,12 @@ import inquirer from 'inquirer';
 import path from 'path';
 import { buildBackend } from '../engine/backendBuilder.js';
 import { buildFrontend } from '../engine/frontendBuilder.js';
+import {
+  ensureAndroidPreflight,
+  ensureJavaPreflight,
+  ensureNodePreflight,
+  ensurePythonPreflight
+} from '../engine/validators/preflight.js';
 import { BackendConfig } from '../types/backend-config.js';
 import { FrontendConfig } from '../types/frontend-config.js';
 import {
@@ -51,6 +57,8 @@ export async function init(preset?: Record<string, unknown>) {
         parsedArgs?.backendConfig
       );
     }
+
+    await runInitPreflight(frontendConfig, backendConfig);
 
     validateMonorepoSelection(baseAnswers.useMonorepo, backendConfig);
 
@@ -731,6 +739,34 @@ function validateMonorepoSelection(
     throw new Error(
       'Turborepo monorepo setup currently supports JavaScript/TypeScript backends like Express or NestJS for apps/api'
     );
+  }
+}
+
+async function runInitPreflight(
+  frontendConfig: FrontendConfig | null,
+  backendConfig: BackendConfig | null
+) {
+  if (
+    frontendConfig ||
+    backendConfig?.backendType === 'express' ||
+    backendConfig?.backendType === 'nestjs'
+  ) {
+    await ensureNodePreflight();
+  }
+
+  if (frontendConfig?.framework === 'react-native') {
+    await ensureAndroidPreflight();
+  }
+
+  if (
+    backendConfig?.backendType === 'fastapi' ||
+    backendConfig?.backendType === 'django'
+  ) {
+    await ensurePythonPreflight();
+  }
+
+  if (backendConfig?.backendType === 'springboot') {
+    await ensureJavaPreflight();
   }
 }
 

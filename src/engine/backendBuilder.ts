@@ -8,6 +8,7 @@ import {
   resolveTemplateRoot,
   validateTemplateDirectory
 } from './validators/template.js';
+import { validateBackendOutput } from './validators/post-setup.js';
 
 const templatesRoot = resolveTemplateRoot(
   [
@@ -58,6 +59,8 @@ export async function buildBackend(config: BackendConfig) {
       default:
         throw new Error('Unsupported backend type');
     }
+
+    await validateBackendOutput(config, projectPath);
 
     spinner.succeed('Backend setup complete 🚀');
   } catch (error: unknown) {

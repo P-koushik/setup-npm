@@ -1,5 +1,9 @@
 import inquirer from 'inquirer';
 import { buildFrontend } from '../engine/frontendBuilder.js';
+import {
+  ensureAndroidPreflight,
+  ensureNodePreflight
+} from '../engine/validators/preflight.js';
 import { FrontendConfig } from '../types/frontend-config.js';
 import {
   hasFlag,
@@ -17,6 +21,11 @@ import {
 export async function frontend(preset?: Record<string, unknown>) {
   try {
     const config = await resolveFrontendConfig(preset);
+    await ensureNodePreflight();
+
+    if (config.framework === 'react-native') {
+      await ensureAndroidPreflight();
+    }
 
     await beginRun(process.cwd(), {
       command: 'frontend',

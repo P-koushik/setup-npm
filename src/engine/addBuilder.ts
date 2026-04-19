@@ -7,6 +7,7 @@ import {
   resolveTemplateRoot,
   validateTemplateDirectory
 } from './validators/template.js';
+import { validateAddFeatureOutput } from './validators/post-setup.js';
 
 const templatesRoot = resolveTemplateRoot(
   [
@@ -30,6 +31,8 @@ export async function addFeature(config: AddConfig) {
     if (needsTooling(config.features)) {
       await addTooling(config, projectInfo);
     }
+
+    await validateAddFeatureOutput(config.features);
 
     spinner.succeed('Feature added successfully 🚀');
   } catch (error: unknown) {
