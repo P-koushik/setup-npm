@@ -1,4 +1,6 @@
-# Supabase Frontend Starter
+# Supabase Frontend Web Starter
+
+This starter is intended for browser-based apps.
 
 ## Environment variables
 

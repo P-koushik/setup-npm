@@ -91,7 +91,8 @@ async function resolvePendingTargets(selection: ParsedSelection): Promise<{
       provider,
       target: answer.target as AppConfig['target'],
       frontendPlatform:
-        provider === 'firebase-auth' && answer.target === 'frontend'
+        (provider === 'firebase-auth' || provider === 'supabase') &&
+        answer.target === 'frontend'
           ? await askFrontendPlatform(provider)
           : undefined
     });
@@ -195,13 +196,13 @@ function registerProviderSelections(
       provider,
       target: 'frontend',
       frontendPlatform:
-        provider === 'firebase-auth'
+        provider === 'firebase-auth' || provider === 'supabase'
           ? inferFrontendPlatform(hasWebFlag, hasMobileFlag)
           : undefined
     });
 
     if (
-      provider === 'firebase-auth' &&
+      (provider === 'firebase-auth' || provider === 'supabase') &&
       !inferFrontendPlatform(hasWebFlag, hasMobileFlag)
     ) {
       pendingProviders.add(provider);

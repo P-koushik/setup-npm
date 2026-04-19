@@ -66,7 +66,7 @@ export async function app() {
     }
 
     if (
-      provider === 'firebase-auth' &&
+      (provider === 'firebase-auth' || provider === 'supabase') &&
       target === 'frontend' &&
       !frontendPlatform
     ) {
