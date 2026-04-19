@@ -8,9 +8,12 @@ export async function app() {
     const providerArg = args.find((arg) => !arg.startsWith('--'));
     const hasFrontendFlag = args.includes('--frontend');
     const hasBackendFlag = args.includes('--backend');
+    const hasWebFlag = args.includes('--web');
+    const hasMobileFlag = args.includes('--mobile');
 
     let provider = normalizeProvider(providerArg);
     let target: AppConfig['target'] | undefined;
+    let frontendPlatform: AppConfig['frontendPlatform'];
 
     if (hasFrontendFlag && !hasBackendFlag) {
       target = 'frontend';
@@ -18,6 +21,16 @@ export async function app() {
 
     if (hasBackendFlag && !hasFrontendFlag) {
       target = 'backend';
+    }
+
+    if (hasWebFlag && !hasMobileFlag) {
+      target = 'frontend';
+      frontendPlatform = 'web';
+    }
+
+    if (hasMobileFlag && !hasWebFlag) {
+      target = 'frontend';
+      frontendPlatform = 'mobile';
     }
 
     if (!provider) {
@@ -52,13 +65,34 @@ export async function app() {
       target = answer.target;
     }
 
+    if (
+      provider === 'firebase-auth' &&
+      target === 'frontend' &&
+      !frontendPlatform
+    ) {
+      const answer = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'frontendPlatform',
+          message: 'Choose frontend platform:',
+          choices: [
+            { name: 'Web', value: 'web' },
+            { name: 'Mobile', value: 'mobile' }
+          ]
+        }
+      ]);
+
+      frontendPlatform = answer.frontendPlatform;
+    }
+
     if (!provider || !target) {
       throw new Error('Provider and target are required');
     }
 
     await buildAppIntegration({
       provider,
-      target
+      target,
+      frontendPlatform
     });
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'ExitPromptError') {

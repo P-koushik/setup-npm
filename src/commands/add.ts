@@ -89,7 +89,11 @@ async function resolvePendingTargets(selection: ParsedSelection): Promise<{
 
     appIntegrations.push({
       provider,
-      target: answer.target as AppConfig['target']
+      target: answer.target as AppConfig['target'],
+      frontendPlatform:
+        provider === 'firebase-auth' && answer.target === 'frontend'
+          ? await askFrontendPlatform(provider)
+          : undefined
     });
   }
 
@@ -106,6 +110,8 @@ function parseSelectionItems(items: string[]): ParsedSelection {
   const pendingProviders = new Set<AppConfig['provider']>();
   const hasFrontendFlag = normalizedItems.has('--frontend');
   const hasBackendFlag = normalizedItems.has('--backend');
+  const hasWebFlag = normalizedItems.has('--web');
+  const hasMobileFlag = normalizedItems.has('--mobile');
 
   if (normalizedItems.has('cicd')) {
     cicdItems.add('cicd');
@@ -138,6 +144,8 @@ function parseSelectionItems(items: string[]): ParsedSelection {
     'firebase-auth',
     hasFrontendFlag,
     hasBackendFlag,
+    hasWebFlag,
+    hasMobileFlag,
     appIntegrations,
     pendingProviders
   );
@@ -147,6 +155,8 @@ function parseSelectionItems(items: string[]): ParsedSelection {
     'supabase',
     hasFrontendFlag,
     hasBackendFlag,
+    hasWebFlag,
+    hasMobileFlag,
     appIntegrations,
     pendingProviders
   );
@@ -163,6 +173,8 @@ function registerProviderSelections(
   provider: AppConfig['provider'],
   hasFrontendFlag: boolean,
   hasBackendFlag: boolean,
+  hasWebFlag: boolean,
+  hasMobileFlag: boolean,
   appIntegrations: AppConfig[],
   pendingProviders: Set<AppConfig['provider']>
 ) {
@@ -179,7 +191,22 @@ function registerProviderSelections(
   }
 
   if (hasFrontendFlag && !hasBackendFlag) {
-    appIntegrations.push({ provider, target: 'frontend' });
+    appIntegrations.push({
+      provider,
+      target: 'frontend',
+      frontendPlatform:
+        provider === 'firebase-auth'
+          ? inferFrontendPlatform(hasWebFlag, hasMobileFlag)
+          : undefined
+    });
+
+    if (
+      provider === 'firebase-auth' &&
+      !inferFrontendPlatform(hasWebFlag, hasMobileFlag)
+    ) {
+      pendingProviders.add(provider);
+      appIntegrations.pop();
+    }
     return;
   }
 
@@ -197,7 +224,7 @@ function dedupeIntegrations(appIntegrations: AppConfig[]): AppConfig[] {
   const seen = new Set<string>();
 
   return appIntegrations.filter((integration) => {
-    const key = `${integration.provider}:${integration.target}`;
+    const key = `${integration.provider}:${integration.target}:${integration.frontendPlatform ?? ''}`;
 
     if (seen.has(key)) {
       return false;
@@ -215,6 +242,39 @@ function providerLabel(provider: AppConfig['provider']): string {
     case 'supabase':
       return 'Supabase';
   }
+}
+
+async function askFrontendPlatform(
+  provider: AppConfig['provider']
+): Promise<AppConfig['frontendPlatform']> {
+  const answer = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'frontendPlatform',
+      message: `Choose frontend platform for ${providerLabel(provider)}:`,
+      choices: [
+        { name: 'Web', value: 'web' },
+        { name: 'Mobile', value: 'mobile' }
+      ]
+    }
+  ]);
+
+  return answer.frontendPlatform as AppConfig['frontendPlatform'];
+}
+
+function inferFrontendPlatform(
+  hasWebFlag: boolean,
+  hasMobileFlag: boolean
+): AppConfig['frontendPlatform'] {
+  if (hasWebFlag && !hasMobileFlag) {
+    return 'web';
+  }
+
+  if (hasMobileFlag && !hasWebFlag) {
+    return 'mobile';
+  }
+
+  return undefined;
 }
 
 type ParsedSelection = {

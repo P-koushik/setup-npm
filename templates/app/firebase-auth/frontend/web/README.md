@@ -1,6 +1,6 @@
-# Firebase Auth Frontend Starter
+# Firebase Auth Web Starter
 
-Files in this folder are framework-neutral frontend starters.
+This starter is intended for browser apps.
 
 ## Environment variables
 
@@ -16,3 +16,8 @@ FIREBASE_APP_ID=your-app-id
 ```bash
 npm install firebase
 ```
+
+## Notes
+
+- Google sign-in uses the browser popup flow.
+- For mobile browsers, Firebase recommends redirect flows over popup flows.

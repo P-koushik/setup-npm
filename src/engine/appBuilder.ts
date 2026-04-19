@@ -16,13 +16,19 @@ export async function buildAppIntegration(config: AppConfig) {
       templatesRoot,
       'app',
       config.provider,
-      config.target
+      config.target,
+      ...(config.target === 'frontend' && config.frontendPlatform
+        ? [config.frontendPlatform]
+        : [])
     );
     const destinationDir = path.join(
       process.cwd(),
       'integrations',
       config.provider,
-      config.target
+      config.target,
+      ...(config.target === 'frontend' && config.frontendPlatform
+        ? [config.frontendPlatform]
+        : [])
     );
 
     if (!(await fs.pathExists(sourceDir))) {
@@ -90,7 +96,13 @@ function printSummary(
     `Integration location: ${path.relative(process.cwd(), destinationDir)}`
   );
   console.log(`Provider: ${config.provider}`);
-  console.log(`Target: ${config.target}\n`);
+  console.log(`Target: ${config.target}`);
+
+  if (config.target === 'frontend' && config.frontendPlatform) {
+    console.log(`Frontend platform: ${config.frontendPlatform}`);
+  }
+
+  console.log('');
 }
 
 function resolveTemplatesRoot(): string {

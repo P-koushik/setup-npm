@@ -1,8 +1,8 @@
 import {
   GoogleAuthProvider,
+  onAuthStateChanged,
   signInWithPopup,
   signOut,
-  onAuthStateChanged,
   type User
 } from 'firebase/auth';
 import { firebaseAuth } from './firebaseClient';
@@ -10,8 +10,8 @@ import { firebaseAuth } from './firebaseClient';
 const googleProvider = new GoogleAuthProvider();
 
 export async function signInWithGoogle(): Promise<User> {
-  const credential = await signInWithPopup(firebaseAuth, googleProvider);
-  return credential.user;
+  const result = await signInWithPopup(firebaseAuth, googleProvider);
+  return result.user;
 }
 
 export async function logout(): Promise<void> {

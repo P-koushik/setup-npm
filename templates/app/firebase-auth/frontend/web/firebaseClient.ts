@@ -1,4 +1,4 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
@@ -8,7 +8,8 @@ const firebaseConfig = {
   appId: process.env.FIREBASE_APP_ID
 };
 
-const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const firebaseApp =
+  getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const firebaseAuth = getAuth(firebaseApp);
 
 export { firebaseApp, firebaseAuth };
