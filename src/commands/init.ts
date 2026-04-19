@@ -6,61 +6,74 @@ import { buildBackend } from '../engine/backendBuilder.js';
 import { buildFrontend } from '../engine/frontendBuilder.js';
 import { BackendConfig } from '../types/backend-config.js';
 import { FrontendConfig } from '../types/frontend-config.js';
+import {
+  beginRun,
+  clearRun,
+  completeStep,
+  failStep,
+  loadState,
+  updateProjectConfig
+} from '../utils/state.js';
 
-export async function init() {
+export async function init(preset?: Record<string, unknown>) {
   try {
-    const baseAnswers = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'projectName',
-        message: 'Project name:',
-        validate: (input: string) => (input ? true : 'Project name is required')
-      },
-      {
-        type: 'confirm',
-        name: 'useMonorepo',
-        message: 'Use monorepo structure?',
-        default: true
-      },
-      {
-        type: 'list',
-        name: 'packageManager',
-        message: 'Choose package manager:',
-        choices: [
-          { name: 'npm', value: 'npm' },
-          { name: 'pnpm', value: 'pnpm' },
-          { name: 'yarn', value: 'yarn' },
-          { name: 'bun', value: 'bun' }
-        ],
-        default: 'npm'
-      },
-      {
-        type: 'checkbox',
-        name: 'stacks',
-        message: 'Choose stacks to setup:',
-        choices: [
-          { name: 'Frontend', value: 'frontend' },
-          { name: 'Backend', value: 'backend' }
-        ],
-        validate: (input: string[]) =>
-          input.length > 0 ? true : 'Select at least one stack'
-      }
-    ]);
+    const baseAnswers = preset?.baseAnswers
+      ? (preset.baseAnswers as Record<string, unknown>)
+      : await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'projectName',
+            message: 'Project name:',
+            validate: (input: string) =>
+              input ? true : 'Project name is required'
+          },
+          {
+            type: 'confirm',
+            name: 'useMonorepo',
+            message: 'Use monorepo structure?',
+            default: true
+          },
+          {
+            type: 'list',
+            name: 'packageManager',
+            message: 'Choose package manager:',
+            choices: [
+              { name: 'npm', value: 'npm' },
+              { name: 'pnpm', value: 'pnpm' },
+              { name: 'yarn', value: 'yarn' },
+              { name: 'bun', value: 'bun' }
+            ],
+            default: 'npm'
+          },
+          {
+            type: 'checkbox',
+            name: 'stacks',
+            message: 'Choose stacks to setup:',
+            choices: [
+              { name: 'Frontend', value: 'frontend' },
+              { name: 'Backend', value: 'backend' }
+            ],
+            validate: (input: string[]) =>
+              input.length > 0 ? true : 'Select at least one stack'
+          }
+        ]);
 
-    let frontendConfig: FrontendConfig | null = null;
-    let backendConfig: BackendConfig | null = null;
+    let frontendConfig: FrontendConfig | null =
+      (preset?.frontendConfig as FrontendConfig | null) ?? null;
+    let backendConfig: BackendConfig | null =
+      (preset?.backendConfig as BackendConfig | null) ?? null;
     const namingSeed = baseAnswers.useMonorepo
       ? '__monorepo__'
       : baseAnswers.projectName;
 
-    if (baseAnswers.stacks.includes('frontend')) {
+    if (!frontendConfig && baseAnswers.stacks.includes('frontend')) {
       frontendConfig = await askFrontendConfig(
         namingSeed,
         baseAnswers.packageManager
       );
     }
 
-    if (baseAnswers.stacks.includes('backend')) {
+    if (!backendConfig && baseAnswers.stacks.includes('backend')) {
       backendConfig = await askBackendConfig(
         namingSeed,
         baseAnswers.packageManager
@@ -76,50 +89,130 @@ export async function init() {
     }
 
     await fs.ensureDir(rootDir);
+    const existingState = await loadState(rootDir);
+
+    if (!existingState) {
+      await beginRun(rootDir, {
+        command: 'init',
+        projectPath: rootDir,
+        input: {
+          baseAnswers,
+          frontendConfig,
+          backendConfig
+        },
+        steps: [
+          { id: 'create-workspace-root', status: 'pending' },
+          { id: 'scaffold-frontend', status: 'pending' },
+          { id: 'scaffold-backend', status: 'pending' },
+          { id: 'bootstrap-workspace', status: 'pending' }
+        ]
+      });
+    }
 
     if (baseAnswers.useMonorepo) {
-      await createWorkspaceRoot(
-        rootDir,
-        baseAnswers.packageManager,
-        workspaceScope(baseAnswers.projectName)
-      );
+      try {
+        if (
+          !existingState?.steps.some(
+            (step) =>
+              step.id === 'create-workspace-root' && step.status === 'completed'
+          )
+        ) {
+          await createWorkspaceRoot(
+            rootDir,
+            baseAnswers.packageManager,
+            workspaceScope(baseAnswers.projectName)
+          );
+          await completeStep(rootDir, 'create-workspace-root');
+        }
+      } catch {
+        await failStep(rootDir, 'create-workspace-root');
+        throw new Error('Workspace root creation failed');
+      }
     }
 
     if (frontendConfig) {
-      await buildFrontend({
-        ...frontendConfig,
-        destinationDir: baseAnswers.useMonorepo
-          ? path.join(rootDir, 'apps')
-          : rootDir
-      });
+      try {
+        if (
+          !existingState?.steps.some(
+            (step) =>
+              step.id === 'scaffold-frontend' && step.status === 'completed'
+          )
+        ) {
+          await buildFrontend({
+            ...frontendConfig,
+            destinationDir: baseAnswers.useMonorepo
+              ? path.join(rootDir, 'apps')
+              : rootDir
+          });
 
-      if (baseAnswers.useMonorepo) {
-        await wireMonorepoFrontend(
-          rootDir,
-          frontendConfig,
-          workspaceScope(baseAnswers.projectName)
-        );
+          if (baseAnswers.useMonorepo) {
+            await wireMonorepoFrontend(
+              rootDir,
+              frontendConfig,
+              workspaceScope(baseAnswers.projectName)
+            );
+          }
+          await completeStep(rootDir, 'scaffold-frontend');
+        }
+      } catch {
+        await failStep(rootDir, 'scaffold-frontend');
+        throw new Error('Frontend scaffolding failed');
       }
     }
 
     if (backendConfig) {
-      await buildBackend({
-        ...backendConfig,
-        destinationDir: baseAnswers.useMonorepo
-          ? path.join(rootDir, 'apps')
-          : rootDir
-      });
+      try {
+        if (
+          !existingState?.steps.some(
+            (step) =>
+              step.id === 'scaffold-backend' && step.status === 'completed'
+          )
+        ) {
+          await buildBackend({
+            ...backendConfig,
+            destinationDir: baseAnswers.useMonorepo
+              ? path.join(rootDir, 'apps')
+              : rootDir
+          });
+          await completeStep(rootDir, 'scaffold-backend');
+        }
+      } catch {
+        await failStep(rootDir, 'scaffold-backend');
+        throw new Error('Backend scaffolding failed');
+      }
     }
 
     if (baseAnswers.useMonorepo) {
-      await wireWorkspaceApps(
-        rootDir,
-        workspaceScope(baseAnswers.projectName),
-        Boolean(frontendConfig),
-        Boolean(backendConfig)
-      );
-      bootstrapWorkspace(rootDir, baseAnswers.packageManager);
+      try {
+        if (
+          !existingState?.steps.some(
+            (step) =>
+              step.id === 'bootstrap-workspace' && step.status === 'completed'
+          )
+        ) {
+          await wireWorkspaceApps(
+            rootDir,
+            workspaceScope(baseAnswers.projectName),
+            Boolean(frontendConfig),
+            Boolean(backendConfig)
+          );
+          bootstrapWorkspace(rootDir, baseAnswers.packageManager);
+          await completeStep(rootDir, 'bootstrap-workspace');
+        }
+      } catch {
+        await failStep(rootDir, 'bootstrap-workspace');
+        throw new Error('Workspace bootstrap failed');
+      }
     }
+
+    await updateProjectConfig(rootDir, {
+      projectName: baseAnswers.projectName,
+      monorepo: baseAnswers.useMonorepo,
+      packageManager: baseAnswers.packageManager,
+      frontend: frontendConfig?.framework,
+      backend: backendConfig?.backendType
+    });
+    await clearRun(rootDir);
 
     console.log(`\n✅ Project setup complete at ${rootDir}\n`);
   } catch (error: unknown) {

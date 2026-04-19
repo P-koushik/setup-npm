@@ -6,6 +6,7 @@ import { backend } from '../commands/backend.js';
 import { doctor } from '../commands/doctor.js';
 import { frontend } from '../commands/frontend.js';
 import { init } from '../commands/init.js';
+import { resume } from '../commands/resume.js';
 
 const command = process.argv[2];
 
@@ -35,6 +36,10 @@ switch (command) {
     frontend();
     break;
 
+  case 'resume':
+    resume();
+    break;
+
   default:
     console.log(`
 ❌ Unknown command
@@ -47,5 +52,6 @@ Usage:
   setup doctor [node|android|backend]
   setup frontend
   setup init
+  setup resume
 `);
 }
