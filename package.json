@@ -1,5 +1,5 @@
 {
-  "name": "@koushik/setup",
+  "name": "@koushik.p05/setup",
   "version": "1.0.0",
   "description": "CLI tool to scaffold fullstack projects",
   "bin": {
