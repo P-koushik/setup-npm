@@ -2,6 +2,30 @@
   "name": "@koushik.p05/setup",
   "version": "1.0.0",
   "description": "CLI tool to scaffold fullstack projects",
+  "license": "MIT",
+  "author": "Koushik",
+  "keywords": [
+    "cli",
+    "scaffold",
+    "boilerplate",
+    "fullstack",
+    "frontend",
+    "backend",
+    "monorepo",
+    "turborepo",
+    "setup"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/P-koushik/setup-npm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/P-koushik/setup-npm/issues"
+  },
+  "homepage": "https://github.com/P-koushik/setup-npm#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "setup": "./dist/index.js"
   },
