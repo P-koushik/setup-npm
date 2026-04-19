@@ -18,7 +18,9 @@ export async function backend() {
         choices: [
           { name: 'Express', value: 'express' },
           { name: 'NestJS', value: 'nestjs' },
-          { name: 'FastAPI', value: 'fastapi' }
+          { name: 'FastAPI', value: 'fastapi' },
+          { name: 'Django', value: 'django' },
+          { name: 'Spring Boot', value: 'springboot' }
         ],
         default: 'express'
       }

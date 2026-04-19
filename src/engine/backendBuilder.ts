@@ -32,6 +32,14 @@ export async function buildBackend(config: BackendConfig) {
         await scaffoldFastApi(config.projectName, projectPath);
         break;
 
+      case 'django':
+        await scaffoldDjango(config.projectName, projectPath);
+        break;
+
+      case 'springboot':
+        await scaffoldSpringBoot(config.projectName, projectPath);
+        break;
+
       default:
         throw new Error('Unsupported backend type');
     }
@@ -95,6 +103,55 @@ async function scaffoldFastApi(projectName: string, projectPath: string) {
   );
 }
 
+async function scaffoldDjango(projectName: string, projectPath: string) {
+  const templatePath = path.join(templatesRoot, 'django');
+
+  runStep('Copying Django production template files');
+  await fs.copy(templatePath, projectPath);
+
+  const pythonCommand = getPythonCommand();
+
+  if (!pythonCommand) {
+    console.log('\n▶ Python environment setup skipped');
+    console.log('Python was not found in PATH.');
+    console.log(`Next step: cd ${projectName} && python3 -m venv .venv\n`);
+    return;
+  }
+
+  runCommand(
+    'Creating virtual environment',
+    `${pythonCommand} -m venv .venv`,
+    projectPath
+  );
+  runCommand(
+    'Installing Python dependencies',
+    `${quote(getVenvPython(projectPath))} -m pip install -r requirements.txt`,
+    projectPath
+  );
+}
+
+async function scaffoldSpringBoot(projectName: string, projectPath: string) {
+  const templatePath = path.join(templatesRoot, 'springboot');
+
+  runStep('Copying Spring Boot template files');
+  await fs.copy(templatePath, projectPath);
+
+  const mavenCommand = getMavenCommand();
+
+  if (!mavenCommand) {
+    console.log('\n▶ Maven dependency setup skipped');
+    console.log('Maven was not found in PATH.');
+    console.log(`Next step: cd ${projectName} && mvn dependency:resolve\n`);
+    return;
+  }
+
+  runCommand(
+    'Resolving Maven dependencies',
+    `${mavenCommand} dependency:resolve`,
+    projectPath
+  );
+}
+
 function getPythonCommand(): string | null {
   const candidates =
     process.platform === 'win32'
@@ -117,6 +174,22 @@ function getVenvPython(projectPath: string): string {
   return process.platform === 'win32'
     ? path.join(projectPath, '.venv', 'Scripts', 'python.exe')
     : path.join(projectPath, '.venv', 'bin', 'python');
+}
+
+function getMavenCommand(): string | null {
+  const candidates =
+    process.platform === 'win32' ? ['mvn.cmd', 'mvn'] : ['mvn'];
+
+  for (const candidate of candidates) {
+    try {
+      execSync(`${candidate} -v`, { stdio: 'ignore' });
+      return candidate;
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
 }
 
 function runCommand(step: string, command: string, cwd?: string) {
