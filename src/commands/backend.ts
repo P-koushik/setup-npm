@@ -4,7 +4,7 @@ import { BackendConfig } from '../types/backend-config.js';
 
 export async function backend() {
   try {
-    const answers = await inquirer.prompt([
+    const baseAnswers = await inquirer.prompt([
       {
         type: 'input',
         name: 'projectName',
@@ -13,23 +13,46 @@ export async function backend() {
       },
       {
         type: 'list',
-        name: 'language',
-        message: 'Choose language:',
+        name: 'backendType',
+        message: 'Choose backend type:',
         choices: [
-          { name: 'TypeScript (recommended)', value: 'TypeScript' },
-          { name: 'JavaScript', value: 'JavaScript' }
+          { name: 'Express', value: 'express' },
+          { name: 'NestJS', value: 'nestjs' },
+          { name: 'FastAPI', value: 'fastapi' },
+          { name: 'Django', value: 'django' },
+          { name: 'Spring Boot', value: 'springboot' }
         ],
-        default: 'TypeScript'
-      },
-      {
-        type: 'confirm',
-        name: 'useMongo',
-        message: 'Use MongoDB?',
-        default: true
+        default: 'express'
       }
     ]);
 
-    await buildBackend(answers as BackendConfig);
+    let backendAnswers = {};
+
+    if (baseAnswers.backendType === 'express') {
+      backendAnswers = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'language',
+          message: 'Choose language:',
+          choices: [
+            { name: 'TypeScript (recommended)', value: 'TypeScript' },
+            { name: 'JavaScript', value: 'JavaScript' }
+          ],
+          default: 'TypeScript'
+        },
+        {
+          type: 'confirm',
+          name: 'useMongo',
+          message: 'Use MongoDB?',
+          default: true
+        }
+      ]);
+    }
+
+    await buildBackend({
+      ...baseAnswers,
+      ...backendAnswers
+    } as BackendConfig);
   } catch (error: unknown) {
     // ✅ Handle Ctrl+C gracefully
     if (error instanceof Error && error.name === 'ExitPromptError') {

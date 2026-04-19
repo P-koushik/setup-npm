@@ -6,13 +6,11 @@ export async function buildFrontend(config: FrontendConfig) {
   const spinner = ora('Creating frontend project...').start();
 
   try {
-    const command = getCommand(config);
-
     spinner.stop(); // stop spinner before interactive CLI
 
-    execSync(command, {
-      stdio: 'inherit'
-    });
+    runCommand(`Scaffolding ${config.framework} project`, getCommand(config));
+
+    runPostSetup(config);
 
     spinner.succeed('Frontend setup complete 🚀');
   } catch (error: unknown) {
@@ -33,6 +31,12 @@ function getCommand(config: FrontendConfig): string {
     case 'next':
       return `npx create-next-app@latest ${projectName}`;
 
+    case 'angular':
+      return `npx @angular/cli@latest new ${projectName}`;
+
+    case 'vue':
+      return `npm create vue@latest ${projectName}`;
+
     case 'vite':
       return `npm create vite@latest ${projectName}`;
 
@@ -45,4 +49,24 @@ function getCommand(config: FrontendConfig): string {
     default:
       throw new Error('Unsupported framework');
   }
+}
+
+function runPostSetup(config: FrontendConfig) {
+  const { framework, projectName } = config;
+
+  if (framework !== 'vue') {
+    return;
+  }
+
+  runCommand('Installing dependencies', 'npm install', projectName);
+}
+
+function runCommand(step: string, command: string, cwd?: string) {
+  console.log(`\n▶ ${step}`);
+  console.log(`$ ${cwd ? `cd ${cwd} && ` : ''}${command}\n`);
+
+  execSync(command, {
+    cwd,
+    stdio: 'inherit'
+  });
 }
