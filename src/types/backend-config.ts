@@ -1,5 +1,6 @@
 export interface BackendConfig {
   projectName: string;
-  language: 'TypeScript' | 'JavaScript';
-  useMongo: boolean;
+  backendType: 'express' | 'nestjs' | 'fastapi';
+  language?: 'TypeScript' | 'JavaScript';
+  useMongo?: boolean;
 }
