@@ -1,6 +1,6 @@
 import inquirer from 'inquirer';
 import { addFeature } from '../engine/addBuilder.js';
-import { buildAppIntegration } from '../engine/appBuilder.js';
+import { runPlugin } from '../engine/plugin-runner/index.js';
 import { AddConfig } from '../types/add-config.js';
 import { AppConfig } from '../types/app-config.js';
 import {
@@ -72,6 +72,12 @@ async function runSelections(
   appIntegrations: AppConfig[]
 ) {
   const features = cicdFeatures ?? [];
+  const toolingFeatures = features.filter((feature) =>
+    ['linting', 'formatting', 'git-hooks'].includes(feature)
+  ) as Array<'linting' | 'formatting' | 'git-hooks'>;
+  const cicdPluginFeatures = features.filter((feature) =>
+    ['cicd', 'slack', 'discord'].includes(feature)
+  ) as Array<'cicd' | 'slack' | 'discord'>;
   const integrations = dedupeIntegrations(appIntegrations);
   const existingState = await loadState(process.cwd());
 
@@ -96,14 +102,30 @@ async function runSelections(
     });
   }
 
-  if (features.length > 0) {
+  if (toolingFeatures.length > 0) {
     try {
-      await addFeature({ features });
-      for (const feature of features) {
+      await addFeature({ features: toolingFeatures });
+      for (const feature of toolingFeatures) {
         await completeStep(process.cwd(), `feature:${feature}`);
       }
     } catch {
-      for (const feature of features) {
+      for (const feature of toolingFeatures) {
+        await failStep(process.cwd(), `feature:${feature}`);
+      }
+      throw new Error('Feature add failed');
+    }
+  }
+
+  if (cicdPluginFeatures.length > 0) {
+    try {
+      await runPlugin('cicd', {
+        features: cicdPluginFeatures
+      });
+      for (const feature of cicdPluginFeatures) {
+        await completeStep(process.cwd(), `feature:${feature}`);
+      }
+    } catch {
+      for (const feature of cicdPluginFeatures) {
         await failStep(process.cwd(), `feature:${feature}`);
       }
       throw new Error('Feature add failed');
@@ -122,7 +144,10 @@ async function runSelections(
     }
 
     try {
-      await buildAppIntegration(integration);
+      await runPlugin(integration.provider, {
+        target: integration.target,
+        frontendPlatform: integration.frontendPlatform
+      });
       await completeStep(process.cwd(), stepId);
     } catch {
       await failStep(process.cwd(), stepId);

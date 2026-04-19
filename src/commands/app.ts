@@ -1,5 +1,5 @@
 import inquirer from 'inquirer';
-import { buildAppIntegration } from '../engine/appBuilder.js';
+import { runPlugin } from '../engine/plugin-runner/index.js';
 import { AppConfig } from '../types/app-config.js';
 import {
   beginRun,
@@ -21,7 +21,10 @@ export async function app(preset?: Record<string, unknown>) {
     });
 
     try {
-      await buildAppIntegration(config);
+      await runPlugin(config.provider, {
+        target: config.target,
+        frontendPlatform: config.frontendPlatform
+      });
       await completeStep(process.cwd(), 'apply-app-integration');
     } catch {
       await failStep(process.cwd(), 'apply-app-integration');
