@@ -11,7 +11,15 @@ export async function addFeature(config: AddConfig) {
 
   try {
     spinner.stop();
-    await addCicd(config);
+    const projectInfo = await detectProjectInfo();
+
+    if (needsCicd(config.features)) {
+      await addCicd(config, projectInfo);
+    }
+
+    if (needsTooling(config.features)) {
+      await addTooling(config, projectInfo);
+    }
 
     spinner.succeed('Feature added successfully 🚀');
   } catch (error: unknown) {
@@ -25,11 +33,9 @@ export async function addFeature(config: AddConfig) {
   }
 }
 
-async function addCicd(config: AddConfig) {
+async function addCicd(config: AddConfig, projectInfo: ProjectInfo) {
   const workflowDir = path.join(process.cwd(), '.github', 'workflows');
   await fs.ensureDir(workflowDir);
-
-  const projectInfo = await detectProjectInfo();
   const generatedFiles: string[] = [];
   const skippedFiles: string[] = [];
   const notifications = config.features.filter(
@@ -63,6 +69,94 @@ async function addCicd(config: AddConfig) {
   }
 
   printSummary(generatedFiles, skippedFiles, notifications, projectInfo);
+}
+
+async function addTooling(config: AddConfig, projectInfo: ProjectInfo) {
+  const packageJsonPath = path.join(process.cwd(), 'package.json');
+
+  if (!(await fs.pathExists(packageJsonPath))) {
+    throw new Error(
+      'Linting, formatting, and git hooks currently require a package.json project'
+    );
+  }
+
+  const generatedFiles: string[] = [];
+  const skippedFiles: string[] = [];
+  const packageJson = (await fs.readJson(
+    packageJsonPath
+  )) as MutablePackageJson;
+  const isTypeScriptProject = await detectTypeScriptProject(packageJson);
+  const needsFormattingBase =
+    config.features.includes('formatting') ||
+    config.features.includes('git-hooks');
+
+  if (config.features.includes('linting')) {
+    await writeIfMissing(
+      path.join(process.cwd(), 'eslint.config.mjs'),
+      generateEslintConfig(isTypeScriptProject),
+      generatedFiles,
+      skippedFiles
+    );
+
+    ensureDevDependencies(
+      packageJson,
+      getLintingDependencies(isTypeScriptProject)
+    );
+    ensureScript(
+      packageJson,
+      'lint',
+      isTypeScriptProject
+        ? 'eslint . --ext .js,.mjs,.cjs,.ts,.mts,.cts'
+        : 'eslint . --ext .js,.mjs,.cjs'
+    );
+  }
+
+  if (needsFormattingBase) {
+    await writeIfMissing(
+      path.join(process.cwd(), '.prettierrc'),
+      generatePrettierConfig(),
+      generatedFiles,
+      skippedFiles
+    );
+
+    ensureDevDependencies(packageJson, { prettier: '^3.8.2' });
+    ensureScript(packageJson, 'format', 'prettier --write .');
+  }
+
+  if (config.features.includes('git-hooks')) {
+    const preCommitPath = path.join(process.cwd(), '.husky', 'pre-commit');
+
+    await writeIfMissing(
+      preCommitPath,
+      generatePreCommitHook(),
+      generatedFiles,
+      skippedFiles
+    );
+
+    if (await fs.pathExists(preCommitPath)) {
+      await fs.chmod(preCommitPath, 0o755);
+    }
+
+    ensureDevDependencies(packageJson, {
+      husky: '^9.1.7',
+      'lint-staged': '^16.4.0'
+    });
+    ensureScript(packageJson, 'prepare', 'husky');
+    ensureLintStaged(
+      packageJson,
+      config.features.includes('linting'),
+      needsFormattingBase,
+      isTypeScriptProject
+    );
+  }
+
+  await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
+  printToolingSummary(
+    generatedFiles,
+    skippedFiles,
+    config.features,
+    projectInfo
+  );
 }
 
 async function copyIfMissing(
@@ -138,6 +232,45 @@ function printSummary(
       'Notification workflows trigger when the `CI` workflow completes.\n'
     );
   }
+}
+
+function printToolingSummary(
+  generatedFiles: string[],
+  skippedFiles: string[],
+  features: AddConfig['features'],
+  projectInfo: ProjectInfo
+) {
+  if (generatedFiles.length > 0) {
+    console.log('Created files:');
+    for (const file of generatedFiles) {
+      console.log(`- ${file}`);
+    }
+    console.log('');
+  }
+
+  console.log(`Detected environment: ${projectInfo.summary}\n`);
+
+  if (skippedFiles.length > 0) {
+    console.log('Skipped existing files:');
+    for (const file of skippedFiles) {
+      console.log(`- ${file}`);
+    }
+    console.log('');
+  }
+
+  if (features.includes('linting')) {
+    console.log('Added package.json support for linting.');
+  }
+
+  if (features.includes('formatting')) {
+    console.log('Added package.json support for formatting.');
+  }
+
+  if (features.includes('git-hooks')) {
+    console.log('Added Husky + lint-staged Git hooks configuration.');
+  }
+
+  console.log('');
 }
 
 function generateCiWorkflow(projectInfo: ProjectInfo): string {
@@ -575,6 +708,174 @@ function resolveTemplatesRoot(): string {
   );
 }
 
+async function detectTypeScriptProject(
+  packageJson: MutablePackageJson
+): Promise<boolean> {
+  if (
+    (await fs.pathExists(path.join(process.cwd(), 'tsconfig.json'))) ||
+    packageJson.devDependencies?.typescript ||
+    packageJson.dependencies?.typescript
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function generateEslintConfig(isTypeScriptProject: boolean): string {
+  if (!isTypeScriptProject) {
+    return `import js from '@eslint/js';
+import globals from 'globals';
+import prettier from 'eslint-config-prettier';
+
+export default [
+  {
+    ignores: ['dist', 'build', 'coverage', 'node_modules']
+  },
+  js.configs.recommended,
+  {
+    files: ['**/*.{js,mjs,cjs}'],
+    languageOptions: {
+      globals: globals.node
+    }
+  },
+  prettier
+];
+`;
+  }
+
+  return `import js from '@eslint/js';
+import globals from 'globals';
+import tseslint from 'typescript-eslint';
+import prettier from 'eslint-config-prettier';
+
+export default [
+  {
+    ignores: ['dist', 'build', 'coverage', 'node_modules']
+  },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
+  ...tseslint.configs.strict,
+  {
+    files: ['**/*.{js,mjs,cjs,ts,mts,cts}'],
+    languageOptions: {
+      globals: globals.node
+    }
+  },
+  prettier
+];
+`;
+}
+
+function generatePrettierConfig(): string {
+  return `{
+  "semi": true,
+  "singleQuote": true,
+  "trailingComma": "none"
+}
+`;
+}
+
+function generatePreCommitHook(): string {
+  return `#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+npx lint-staged
+`;
+}
+
+function getLintingDependencies(
+  isTypeScriptProject: boolean
+): Record<string, string> {
+  if (!isTypeScriptProject) {
+    return {
+      eslint: '^10.2.0',
+      '@eslint/js': '^10.0.1',
+      globals: '^17.4.0',
+      'eslint-config-prettier': '^10.1.8'
+    };
+  }
+
+  return {
+    eslint: '^10.2.0',
+    '@eslint/js': '^10.0.1',
+    globals: '^17.4.0',
+    'eslint-config-prettier': '^10.1.8',
+    typescript: '^6.0.2',
+    'typescript-eslint': '^8.58.1'
+  };
+}
+
+function ensureDevDependencies(
+  packageJson: MutablePackageJson,
+  dependencies: Record<string, string>
+) {
+  packageJson.devDependencies ||= {};
+
+  for (const [name, version] of Object.entries(dependencies)) {
+    if (
+      !packageJson.devDependencies[name] &&
+      !packageJson.dependencies?.[name]
+    ) {
+      packageJson.devDependencies[name] = version;
+    }
+  }
+}
+
+function ensureScript(
+  packageJson: MutablePackageJson,
+  name: string,
+  command: string
+) {
+  packageJson.scripts ||= {};
+
+  if (!packageJson.scripts[name]) {
+    packageJson.scripts[name] = command;
+  }
+}
+
+function ensureLintStaged(
+  packageJson: MutablePackageJson,
+  useLinting: boolean,
+  useFormatting: boolean,
+  isTypeScriptProject: boolean
+) {
+  packageJson['lint-staged'] ||= {};
+
+  const lintPattern = isTypeScriptProject
+    ? '*.{js,mjs,cjs,ts,mts,cts}'
+    : '*.{js,mjs,cjs}';
+  const formatPattern = useLinting
+    ? '*.{json,md,css,scss,yml,yaml}'
+    : '*.{js,mjs,cjs,ts,mts,cts,json,md,css,scss,yml,yaml}';
+
+  if (useLinting && !packageJson['lint-staged'][lintPattern]) {
+    packageJson['lint-staged'][lintPattern] = useFormatting
+      ? ['eslint --fix', 'prettier --write']
+      : ['eslint --fix'];
+  }
+
+  if (useFormatting && !packageJson['lint-staged'][formatPattern]) {
+    packageJson['lint-staged'][formatPattern] = ['prettier --write'];
+  }
+}
+
+function needsCicd(features: AddConfig['features']): boolean {
+  return features.some(
+    (feature) =>
+      feature === 'cicd' || feature === 'slack' || feature === 'discord'
+  );
+}
+
+function needsTooling(features: AddConfig['features']): boolean {
+  return features.some(
+    (feature) =>
+      feature === 'linting' ||
+      feature === 'formatting' ||
+      feature === 'git-hooks'
+  );
+}
+
 function indent(value: string, spaces: number): string {
   return `${' '.repeat(spaces)}${value}`;
 }
@@ -600,6 +901,10 @@ type PackageJson = {
     node?: string;
   };
   packageManager?: string;
+};
+
+type MutablePackageJson = PackageJson & {
+  'lint-staged'?: Record<string, string[]>;
 };
 
 type NodeProjectInfo = {

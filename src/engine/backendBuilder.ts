@@ -9,7 +9,8 @@ const templatesRoot = resolveTemplatesRoot();
 
 export async function buildBackend(config: BackendConfig) {
   const spinner = ora('Setting up backend...').start();
-  const projectPath = path.join(process.cwd(), config.projectName);
+  const baseDir = config.destinationDir ?? process.cwd();
+  const projectPath = path.join(baseDir, config.projectName);
 
   if (await fs.pathExists(projectPath)) {
     spinner.fail('Folder already exists');
@@ -25,7 +26,11 @@ export async function buildBackend(config: BackendConfig) {
         break;
 
       case 'nestjs':
-        scaffoldNest(config.projectName);
+        scaffoldNest(
+          config.projectName,
+          config.packageManager,
+          config.destinationDir ?? process.cwd()
+        );
         break;
 
       case 'fastapi':
@@ -66,13 +71,24 @@ async function scaffoldExpress(config: BackendConfig, projectPath: string) {
 
   runStep(`Copying ${config.language} Express template files`);
   await fs.copy(templatePath, projectPath);
-  runCommand('Installing dependencies', 'npm install', projectPath);
+  runCommand(
+    'Installing dependencies',
+    installCommand(config.packageManager ?? 'npm'),
+    projectPath
+  );
 }
 
-function scaffoldNest(projectName: string) {
+function scaffoldNest(
+  projectName: string,
+  packageManager: BackendConfig['packageManager'],
+  cwd: string
+) {
   runCommand(
     'Scaffolding NestJS project',
-    `npx @nestjs/cli@latest new ${quote(projectName)} --package-manager npm --skip-git`
+    `${packageManager === 'bun' ? 'bunx' : 'npx'} @nestjs/cli@latest new ${quote(
+      projectName
+    )} --package-manager ${packageManager ?? 'npm'} --skip-git`,
+    cwd
   );
 }
 
@@ -199,6 +215,21 @@ function runCommand(step: string, command: string, cwd?: string) {
     cwd,
     stdio: 'inherit'
   });
+}
+
+function installCommand(
+  packageManager: 'npm' | 'pnpm' | 'yarn' | 'bun'
+): string {
+  switch (packageManager) {
+    case 'pnpm':
+      return 'pnpm install';
+    case 'yarn':
+      return 'yarn install';
+    case 'bun':
+      return 'bun install';
+    case 'npm':
+      return 'npm install';
+  }
 }
 
 function runStep(step: string, command?: string) {

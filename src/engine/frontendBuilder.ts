@@ -8,7 +8,11 @@ export async function buildFrontend(config: FrontendConfig) {
   try {
     spinner.stop(); // stop spinner before interactive CLI
 
-    runCommand(`Scaffolding ${config.framework} project`, getCommand(config));
+    runCommand(
+      `Scaffolding ${config.framework} project`,
+      getCommand(config),
+      config.destinationDir
+    );
 
     runPostSetup(config);
 
@@ -25,26 +29,34 @@ export async function buildFrontend(config: FrontendConfig) {
 }
 
 function getCommand(config: FrontendConfig): string {
-  const { framework, projectName } = config;
+  const { framework, projectName, packageManager = 'npm' } = config;
 
   switch (framework) {
     case 'next':
-      return `npx create-next-app@latest ${projectName}`;
+      return packageManager === 'bun'
+        ? `bunx create-next-app@latest ${projectName}`
+        : `npx create-next-app@latest ${projectName}`;
 
     case 'angular':
-      return `npx @angular/cli@latest new ${projectName}`;
+      return packageManager === 'bun'
+        ? `bunx @angular/cli@latest new ${projectName}`
+        : `npx @angular/cli@latest new ${projectName}`;
 
     case 'vue':
-      return `npm create vue@latest ${projectName}`;
+      return createCommand(packageManager, 'vue@latest', projectName);
 
     case 'vite':
-      return `npm create vite@latest ${projectName}`;
+      return createCommand(packageManager, 'vite@latest', projectName);
 
     case 'expo':
-      return `npx create-expo-app ${projectName}`;
+      return packageManager === 'bun'
+        ? `bunx create-expo-app ${projectName}`
+        : `npx create-expo-app ${projectName}`;
 
     case 'react-native':
-      return `npx react-native init ${projectName}`;
+      return packageManager === 'bun'
+        ? `bunx react-native init ${projectName}`
+        : `npx react-native init ${projectName}`;
 
     default:
       throw new Error('Unsupported framework');
@@ -52,13 +64,22 @@ function getCommand(config: FrontendConfig): string {
 }
 
 function runPostSetup(config: FrontendConfig) {
-  const { framework, projectName } = config;
+  const {
+    framework,
+    projectName,
+    destinationDir,
+    packageManager = 'npm'
+  } = config;
 
   if (framework !== 'vue') {
     return;
   }
 
-  runCommand('Installing dependencies', 'npm install', projectName);
+  runCommand(
+    'Installing dependencies',
+    installCommand(packageManager),
+    resolveProjectDir(projectName, destinationDir)
+  );
 }
 
 function runCommand(step: string, command: string, cwd?: string) {
@@ -69,4 +90,43 @@ function runCommand(step: string, command: string, cwd?: string) {
     cwd,
     stdio: 'inherit'
   });
+}
+
+function resolveProjectDir(
+  projectName: string,
+  destinationDir?: string
+): string {
+  return destinationDir ? `${destinationDir}/${projectName}` : projectName;
+}
+
+function createCommand(
+  packageManager: 'npm' | 'pnpm' | 'yarn' | 'bun',
+  initializer: string,
+  projectName: string
+): string {
+  switch (packageManager) {
+    case 'pnpm':
+      return `pnpm create ${initializer} ${projectName}`;
+    case 'yarn':
+      return `yarn create ${initializer} ${projectName}`;
+    case 'bun':
+      return `bun create ${initializer} ${projectName}`;
+    case 'npm':
+      return `npm create ${initializer} ${projectName}`;
+  }
+}
+
+function installCommand(
+  packageManager: 'npm' | 'pnpm' | 'yarn' | 'bun'
+): string {
+  switch (packageManager) {
+    case 'pnpm':
+      return 'pnpm install';
+    case 'yarn':
+      return 'yarn install';
+    case 'bun':
+      return 'bun install';
+    case 'npm':
+      return 'npm install';
+  }
 }
