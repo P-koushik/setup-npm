@@ -1,0 +1,48 @@
+name: Slack Notification
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build Slack message
+        id: message
+        env:
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          REPOSITORY: ${{ github.repository }}
+          ACTOR: ${{ github.event.workflow_run.actor.login }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          payload = {
+              "text": (
+                  f"GitHub Actions: {os.environ['WORKFLOW_NAME']} finished with "
+                  f"{os.environ['CONCLUSION']} in {os.environ['REPOSITORY']} "
+                  f"on branch {os.environ['BRANCH']} by {os.environ['ACTOR']}. "
+                  f"Run: {os.environ['RUN_URL']}"
+              )
+          }
+          print(f"payload={json.dumps(payload)}")
+          PY
+
+      - name: Send Slack notification
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          PAYLOAD: ${{ steps.message.outputs.payload }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "Missing SLACK_WEBHOOK_URL secret"
+            exit 1
+          fi
+
+          curl -X POST "$SLACK_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            --data-raw "$PAYLOAD"
