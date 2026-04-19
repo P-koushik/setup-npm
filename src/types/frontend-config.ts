@@ -1,5 +1,5 @@
 export type FrontendConfig = {
   platform: 'web' | 'native';
-  framework: 'next' | 'vite' | 'expo' | 'react-native';
+  framework: 'next' | 'angular' | 'vue' | 'vite' | 'expo' | 'react-native';
   projectName: string;
 };

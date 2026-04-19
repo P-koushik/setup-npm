@@ -25,6 +25,8 @@ export async function frontend() {
           message: 'Choose framework:',
           choices: [
             { name: 'Next.js (recommended)', value: 'next' },
+            { name: 'Angular', value: 'angular' },
+            { name: 'Vue', value: 'vue' },
             { name: 'React (Vite)', value: 'vite' }
           ]
         }
