@@ -2,6 +2,11 @@ import inquirer from 'inquirer';
 import { buildFrontend } from '../engine/frontendBuilder.js';
 import { FrontendConfig } from '../types/frontend-config.js';
 import {
+  hasFlag,
+  inferPackageManager,
+  readFlagValue
+} from '../utils/cli-flags.js';
+import {
   beginRun,
   clearRun,
   completeStep,
@@ -48,9 +53,45 @@ export async function frontend(preset?: Record<string, unknown>) {
 async function resolveFrontendConfig(
   preset?: Record<string, unknown>
 ): Promise<FrontendConfig> {
-  const platform =
-    preset?.platform ??
-    (
+  const args = preset ? [] : process.argv.slice(3);
+  let platform =
+    (typeof preset?.platform === 'string'
+      ? normalizePlatform(preset.platform)
+      : undefined) ??
+    normalizePlatform(readFlagValue(args, '--platform')) ??
+    inferPlatformFromFlags(args);
+  let framework =
+    (typeof preset?.framework === 'string'
+      ? normalizeFramework(preset.framework)
+      : undefined) ??
+    normalizeFramework(readFlagValue(args, '--framework')) ??
+    inferFrameworkFromFlags(args);
+  const projectName =
+    typeof preset?.projectName === 'string'
+      ? preset.projectName
+      : readFlagValue(args, '--name', '--project-name');
+  const destinationDir =
+    typeof preset?.destinationDir === 'string'
+      ? preset.destinationDir
+      : readFlagValue(args, '--destination', '--destination-dir', '--out-dir');
+  const packageManager =
+    typeof preset?.packageManager === 'string'
+      ? preset.packageManager
+      : inferPackageManager(args);
+
+  if (!platform && framework) {
+    platform =
+      framework === 'expo' || framework === 'react-native' ? 'native' : 'web';
+  }
+
+  if (platform && framework && !isFrameworkCompatible(platform, framework)) {
+    throw new Error(
+      `Framework "${framework}" is not valid for platform "${platform}"`
+    );
+  }
+
+  if (!platform) {
+    platform = (
       await inquirer.prompt([
         {
           type: 'list',
@@ -63,10 +104,10 @@ async function resolveFrontendConfig(
         }
       ])
     ).platform;
+  }
 
-  const framework =
-    preset?.framework ??
-    (
+  if (!framework) {
+    framework = (
       await inquirer.prompt([
         {
           type: 'list',
@@ -87,32 +128,115 @@ async function resolveFrontendConfig(
         }
       ])
     ).framework;
+  }
 
-  const projectName =
-    typeof preset?.projectName === 'string'
-      ? preset.projectName
-      : (
-          await inquirer.prompt([
-            {
-              type: 'input',
-              name: 'projectName',
-              message: 'Project name:',
-              validate: (input) => (input ? true : 'Project name is required')
-            }
-          ])
-        ).projectName;
+  const resolvedProjectName =
+    projectName ??
+    (
+      await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'projectName',
+          message: 'Project name:',
+          validate: (input) => (input ? true : 'Project name is required')
+        }
+      ])
+    ).projectName;
+
+  if (!platform || !framework) {
+    throw new Error('Frontend platform and framework are required');
+  }
 
   return {
-    platform: platform as FrontendConfig['platform'],
-    framework: framework as FrontendConfig['framework'],
-    projectName,
-    destinationDir:
-      typeof preset?.destinationDir === 'string'
-        ? preset.destinationDir
-        : undefined,
+    platform,
+    framework,
+    projectName: resolvedProjectName,
+    destinationDir,
     packageManager:
-      typeof preset?.packageManager === 'string'
-        ? (preset.packageManager as FrontendConfig['packageManager'])
+      typeof packageManager === 'string'
+        ? (packageManager as FrontendConfig['packageManager'])
         : undefined
   };
+}
+
+function normalizePlatform(
+  value?: string
+): FrontendConfig['platform'] | undefined {
+  if (value === 'web' || value === 'native') {
+    return value;
+  }
+
+  return undefined;
+}
+
+function normalizeFramework(
+  value?: string
+): FrontendConfig['framework'] | undefined {
+  if (
+    value === 'next' ||
+    value === 'angular' ||
+    value === 'vue' ||
+    value === 'vite' ||
+    value === 'expo' ||
+    value === 'react-native'
+  ) {
+    return value;
+  }
+
+  return undefined;
+}
+
+function inferPlatformFromFlags(
+  args: string[]
+): FrontendConfig['platform'] | undefined {
+  if (hasFlag(args, '--web') && !hasFlag(args, '--native')) {
+    return 'web';
+  }
+
+  if (hasFlag(args, '--native') && !hasFlag(args, '--web')) {
+    return 'native';
+  }
+
+  return undefined;
+}
+
+function inferFrameworkFromFlags(
+  args: string[]
+): FrontendConfig['framework'] | undefined {
+  if (hasFlag(args, '--next')) {
+    return 'next';
+  }
+
+  if (hasFlag(args, '--angular')) {
+    return 'angular';
+  }
+
+  if (hasFlag(args, '--vue')) {
+    return 'vue';
+  }
+
+  if (hasFlag(args, '--vite')) {
+    return 'vite';
+  }
+
+  if (hasFlag(args, '--expo')) {
+    return 'expo';
+  }
+
+  if (hasFlag(args, '--react-native')) {
+    return 'react-native';
+  }
+
+  return undefined;
+}
+
+function isFrameworkCompatible(
+  platform: FrontendConfig['platform'],
+  framework: FrontendConfig['framework']
+) {
+  if (platform === 'web') {
+    return ['next', 'angular', 'vue', 'vite'].includes(framework);
+  }
+
+  return ['expo', 'react-native'].includes(framework);
 }

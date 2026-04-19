@@ -7,6 +7,11 @@ import { buildFrontend } from '../engine/frontendBuilder.js';
 import { BackendConfig } from '../types/backend-config.js';
 import { FrontendConfig } from '../types/frontend-config.js';
 import {
+  hasFlag,
+  inferPackageManager,
+  readFlagValue
+} from '../utils/cli-flags.js';
+import {
   beginRun,
   clearRun,
   completeStep,
@@ -17,46 +22,11 @@ import {
 
 export async function init(preset?: Record<string, unknown>) {
   try {
-    const baseAnswers = preset?.baseAnswers
-      ? (preset.baseAnswers as Record<string, unknown>)
-      : await inquirer.prompt([
-          {
-            type: 'input',
-            name: 'projectName',
-            message: 'Project name:',
-            validate: (input: string) =>
-              input ? true : 'Project name is required'
-          },
-          {
-            type: 'confirm',
-            name: 'useMonorepo',
-            message: 'Use monorepo structure?',
-            default: true
-          },
-          {
-            type: 'list',
-            name: 'packageManager',
-            message: 'Choose package manager:',
-            choices: [
-              { name: 'npm', value: 'npm' },
-              { name: 'pnpm', value: 'pnpm' },
-              { name: 'yarn', value: 'yarn' },
-              { name: 'bun', value: 'bun' }
-            ],
-            default: 'npm'
-          },
-          {
-            type: 'checkbox',
-            name: 'stacks',
-            message: 'Choose stacks to setup:',
-            choices: [
-              { name: 'Frontend', value: 'frontend' },
-              { name: 'Backend', value: 'backend' }
-            ],
-            validate: (input: string[]) =>
-              input.length > 0 ? true : 'Select at least one stack'
-          }
-        ]);
+    const parsedArgs = preset ? null : parseInitFlags(process.argv.slice(3));
+    const baseAnswers = await resolveInitBaseAnswers(
+      (preset?.baseAnswers as Partial<InitBaseAnswers> | undefined) ??
+        parsedArgs?.baseAnswers
+    );
 
     let frontendConfig: FrontendConfig | null =
       (preset?.frontendConfig as FrontendConfig | null) ?? null;
@@ -69,14 +39,16 @@ export async function init(preset?: Record<string, unknown>) {
     if (!frontendConfig && baseAnswers.stacks.includes('frontend')) {
       frontendConfig = await askFrontendConfig(
         namingSeed,
-        baseAnswers.packageManager
+        baseAnswers.packageManager,
+        parsedArgs?.frontendConfig
       );
     }
 
     if (!backendConfig && baseAnswers.stacks.includes('backend')) {
       backendConfig = await askBackendConfig(
         namingSeed,
-        baseAnswers.packageManager
+        baseAnswers.packageManager,
+        parsedArgs?.backendConfig
       );
     }
 
@@ -226,21 +198,119 @@ export async function init(preset?: Record<string, unknown>) {
   }
 }
 
+type InitBaseAnswers = {
+  projectName: string;
+  useMonorepo: boolean;
+  packageManager: FrontendConfig['packageManager'];
+  stacks: Array<'frontend' | 'backend'>;
+};
+
+type ParsedInitFlags = {
+  baseAnswers: Partial<InitBaseAnswers>;
+  frontendConfig: Partial<FrontendConfig> | null;
+  backendConfig: Partial<BackendConfig> | null;
+};
+
+async function resolveInitBaseAnswers(
+  initial?: Partial<InitBaseAnswers>
+): Promise<InitBaseAnswers> {
+  const projectName =
+    initial?.projectName ??
+    (
+      await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'projectName',
+          message: 'Project name:',
+          validate: (input: string) =>
+            input ? true : 'Project name is required'
+        }
+      ])
+    ).projectName;
+  const useMonorepo =
+    typeof initial?.useMonorepo === 'boolean'
+      ? initial.useMonorepo
+      : (
+          await inquirer.prompt([
+            {
+              type: 'confirm',
+              name: 'useMonorepo',
+              message: 'Use monorepo structure?',
+              default: true
+            }
+          ])
+        ).useMonorepo;
+  const packageManager =
+    initial?.packageManager ??
+    (
+      await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'packageManager',
+          message: 'Choose package manager:',
+          choices: [
+            { name: 'npm', value: 'npm' },
+            { name: 'pnpm', value: 'pnpm' },
+            { name: 'yarn', value: 'yarn' },
+            { name: 'bun', value: 'bun' }
+          ],
+          default: 'npm'
+        }
+      ])
+    ).packageManager;
+  const stacks =
+    initial?.stacks && initial.stacks.length > 0
+      ? initial.stacks
+      : (
+          await inquirer.prompt([
+            {
+              type: 'checkbox',
+              name: 'stacks',
+              message: 'Choose stacks to setup:',
+              choices: [
+                { name: 'Frontend', value: 'frontend' },
+                { name: 'Backend', value: 'backend' }
+              ],
+              validate: (input: string[]) =>
+                input.length > 0 ? true : 'Select at least one stack'
+            }
+          ])
+        ).stacks;
+
+  return {
+    projectName,
+    useMonorepo,
+    packageManager,
+    stacks
+  };
+}
+
 async function askFrontendConfig(
   projectName: string,
-  packageManager: FrontendConfig['packageManager']
+  packageManager: FrontendConfig['packageManager'],
+  partial?: Partial<FrontendConfig> | null
 ): Promise<FrontendConfig> {
-  const { platform } = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'platform',
-      message: 'Choose frontend platform:',
-      choices: [
-        { name: 'Web 🌐', value: 'web' },
-        { name: 'Native 📱', value: 'native' }
-      ]
-    }
-  ]);
+  let platform = partial?.platform;
+
+  if (!platform) {
+    platform = (
+      await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'platform',
+          message: 'Choose frontend platform:',
+          choices: [
+            { name: 'Web 🌐', value: 'web' },
+            { name: 'Native 📱', value: 'native' }
+          ]
+        }
+      ])
+    ).platform;
+  }
+
+  if (!platform) {
+    throw new Error('Frontend platform is required');
+  }
 
   const frameworkChoices =
     platform === 'web'
@@ -255,14 +325,20 @@ async function askFrontendConfig(
           { name: 'React Native CLI', value: 'react-native' }
         ];
 
-  const { framework } = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'framework',
-      message: 'Choose frontend framework:',
-      choices: frameworkChoices
-    }
-  ]);
+  let framework = partial?.framework;
+
+  if (!framework) {
+    framework = (
+      await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'framework',
+          message: 'Choose frontend framework:',
+          choices: frameworkChoices
+        }
+      ])
+    ).framework;
+  }
 
   return {
     platform,
@@ -274,45 +350,61 @@ async function askFrontendConfig(
 
 async function askBackendConfig(
   projectName: string,
-  packageManager: BackendConfig['packageManager']
+  packageManager: BackendConfig['packageManager'],
+  partial?: Partial<BackendConfig> | null
 ): Promise<BackendConfig> {
-  const baseAnswers = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'backendType',
-      message: 'Choose backend type:',
-      choices: [
-        { name: 'Express', value: 'express' },
-        { name: 'NestJS', value: 'nestjs' },
-        { name: 'FastAPI', value: 'fastapi' },
-        { name: 'Django', value: 'django' },
-        { name: 'Spring Boot', value: 'springboot' }
-      ],
-      default: 'express'
-    }
-  ]);
+  const baseAnswers = partial?.backendType
+    ? { backendType: partial.backendType }
+    : await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'backendType',
+          message: 'Choose backend type:',
+          choices: [
+            { name: 'Express', value: 'express' },
+            { name: 'NestJS', value: 'nestjs' },
+            { name: 'FastAPI', value: 'fastapi' },
+            { name: 'Django', value: 'django' },
+            { name: 'Spring Boot', value: 'springboot' }
+          ],
+          default: 'express'
+        }
+      ]);
 
   let backendAnswers = {};
 
   if (baseAnswers.backendType === 'express') {
-    backendAnswers = await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'language',
-        message: 'Choose backend language:',
-        choices: [
-          { name: 'TypeScript (recommended)', value: 'TypeScript' },
-          { name: 'JavaScript', value: 'JavaScript' }
-        ],
-        default: 'TypeScript'
-      },
-      {
-        type: 'confirm',
-        name: 'useMongo',
-        message: 'Use MongoDB?',
-        default: true
-      }
-    ]);
+    const language =
+      partial?.language ??
+      (
+        await inquirer.prompt([
+          {
+            type: 'list',
+            name: 'language',
+            message: 'Choose backend language:',
+            choices: [
+              { name: 'TypeScript (recommended)', value: 'TypeScript' },
+              { name: 'JavaScript', value: 'JavaScript' }
+            ],
+            default: 'TypeScript'
+          }
+        ])
+      ).language;
+    const useMongo =
+      typeof partial?.useMongo === 'boolean'
+        ? partial.useMongo
+        : (
+            await inquirer.prompt([
+              {
+                type: 'confirm',
+                name: 'useMongo',
+                message: 'Use MongoDB?',
+                default: true
+              }
+            ])
+          ).useMongo;
+
+    backendAnswers = { language, useMongo };
   }
 
   return {
@@ -640,6 +732,204 @@ function validateMonorepoSelection(
       'Turborepo monorepo setup currently supports JavaScript/TypeScript backends like Express or NestJS for apps/api'
     );
   }
+}
+
+function parseInitFlags(args: string[]): ParsedInitFlags {
+  const packageManager = inferPackageManager(args);
+  const projectName = readFlagValue(args, '--name', '--project-name');
+  const useMonorepo = hasFlag(args, '--monorepo')
+    ? true
+    : hasFlag(args, '--no-monorepo')
+      ? false
+      : undefined;
+  const stacks = inferStacks(args);
+  const frontendFramework = inferInitFrontendFramework(args);
+  const backendType = inferInitBackendType(args);
+  const frontendPlatform =
+    frontendFramework === 'expo' || frontendFramework === 'react-native'
+      ? 'native'
+      : frontendFramework
+        ? 'web'
+        : inferInitFrontendPlatform(args);
+
+  return {
+    baseAnswers: {
+      projectName,
+      useMonorepo,
+      packageManager,
+      stacks
+    },
+    frontendConfig:
+      frontendFramework || frontendPlatform
+        ? {
+            platform: frontendPlatform,
+            framework: frontendFramework,
+            packageManager
+          }
+        : null,
+    backendConfig:
+      backendType ||
+      inferInitLanguage(args) ||
+      typeof inferInitMongoPreference(args) === 'boolean'
+        ? {
+            backendType,
+            language: inferInitLanguage(args),
+            useMongo: inferInitMongoPreference(args),
+            packageManager
+          }
+        : null
+  };
+}
+
+function inferStacks(
+  args: string[]
+): Array<'frontend' | 'backend'> | undefined {
+  const stacks: Array<'frontend' | 'backend'> = [];
+
+  if (hasFlag(args, '--frontend')) {
+    stacks.push('frontend');
+  }
+
+  if (hasFlag(args, '--backend')) {
+    stacks.push('backend');
+  }
+
+  if (stacks.length > 0) {
+    return stacks;
+  }
+
+  return undefined;
+}
+
+function inferInitFrontendPlatform(
+  args: string[]
+): FrontendConfig['platform'] | undefined {
+  if (hasFlag(args, '--web') && !hasFlag(args, '--native')) {
+    return 'web';
+  }
+
+  if (hasFlag(args, '--native') && !hasFlag(args, '--web')) {
+    return 'native';
+  }
+
+  return undefined;
+}
+
+function inferInitFrontendFramework(
+  args: string[]
+): FrontendConfig['framework'] | undefined {
+  const value = readFlagValue(args, '--frontend-framework', '--framework');
+
+  if (
+    value === 'next' ||
+    value === 'angular' ||
+    value === 'vue' ||
+    value === 'vite' ||
+    value === 'expo' ||
+    value === 'react-native'
+  ) {
+    return value;
+  }
+
+  if (hasFlag(args, '--next')) {
+    return 'next';
+  }
+
+  if (hasFlag(args, '--angular')) {
+    return 'angular';
+  }
+
+  if (hasFlag(args, '--vue')) {
+    return 'vue';
+  }
+
+  if (hasFlag(args, '--vite')) {
+    return 'vite';
+  }
+
+  if (hasFlag(args, '--expo')) {
+    return 'expo';
+  }
+
+  if (hasFlag(args, '--react-native')) {
+    return 'react-native';
+  }
+
+  return undefined;
+}
+
+function inferInitBackendType(
+  args: string[]
+): BackendConfig['backendType'] | undefined {
+  const value = readFlagValue(args, '--backend-framework', '--framework');
+
+  if (
+    value === 'express' ||
+    value === 'nestjs' ||
+    value === 'fastapi' ||
+    value === 'django' ||
+    value === 'springboot'
+  ) {
+    return value;
+  }
+
+  if (hasFlag(args, '--express')) {
+    return 'express';
+  }
+
+  if (hasFlag(args, '--nestjs')) {
+    return 'nestjs';
+  }
+
+  if (hasFlag(args, '--fastapi')) {
+    return 'fastapi';
+  }
+
+  if (hasFlag(args, '--django')) {
+    return 'django';
+  }
+
+  if (hasFlag(args, '--springboot', '--spring-boot')) {
+    return 'springboot';
+  }
+
+  return undefined;
+}
+
+function inferInitLanguage(
+  args: string[]
+): BackendConfig['language'] | undefined {
+  if (hasFlag(args, '--ts') && !hasFlag(args, '--js')) {
+    return 'TypeScript';
+  }
+
+  if (hasFlag(args, '--js') && !hasFlag(args, '--ts')) {
+    return 'JavaScript';
+  }
+
+  return undefined;
+}
+
+function inferInitMongoPreference(args: string[]) {
+  if (hasFlag(args, '--mongo')) {
+    return true;
+  }
+
+  if (hasFlag(args, '--no-mongo')) {
+    return false;
+  }
+
+  const dbValue = readFlagValue(args, '--db');
+
+  if (dbValue === 'mongo' || dbValue === 'mongodb') {
+    return true;
+  }
+
+  if (dbValue === 'none') {
+    return false;
+  }
+
+  return undefined;
 }
 
 function bootstrapWorkspace(
