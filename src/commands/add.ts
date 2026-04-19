@@ -29,6 +29,9 @@ export async function add() {
           { name: 'CI/CD pipeline', value: 'cicd' },
           { name: 'Slack notifications', value: 'slack' },
           { name: 'Discord notifications', value: 'discord' },
+          { name: 'Linting', value: 'linting' },
+          { name: 'Formatting', value: 'formatting' },
+          { name: 'Git hooks', value: 'git-hooks' },
           { name: 'Firebase Auth', value: 'firebase-auth' },
           { name: 'Supabase', value: 'supabase' }
         ],
@@ -116,6 +119,18 @@ function parseSelectionItems(items: string[]): ParsedSelection {
   if (normalizedItems.has('discord')) {
     cicdItems.add('cicd');
     cicdItems.add('discord');
+  }
+
+  if (normalizedItems.has('linting')) {
+    cicdItems.add('linting');
+  }
+
+  if (normalizedItems.has('formatting')) {
+    cicdItems.add('formatting');
+  }
+
+  if (normalizedItems.has('git-hooks')) {
+    cicdItems.add('git-hooks');
   }
 
   registerProviderSelections(
