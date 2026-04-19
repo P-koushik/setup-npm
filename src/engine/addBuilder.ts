@@ -3,8 +3,19 @@ import ora from 'ora';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { AddConfig } from '../types/add-config.js';
+import {
+  resolveTemplateRoot,
+  validateTemplateDirectory
+} from './validators/template.js';
+import { validateAddFeatureOutput } from './validators/post-setup.js';
 
-const templatesRoot = resolveTemplatesRoot();
+const templatesRoot = resolveTemplateRoot(
+  [
+    fileURLToPath(new URL('../templates', import.meta.url)),
+    fileURLToPath(new URL('../../templates', import.meta.url))
+  ],
+  'Templates directory'
+);
 
 export async function addFeature(config: AddConfig) {
   const spinner = ora('Adding project scaffolding...').start();
@@ -20,6 +31,8 @@ export async function addFeature(config: AddConfig) {
     if (needsTooling(config.features)) {
       await addTooling(config, projectInfo);
     }
+
+    await validateAddFeatureOutput(config.features);
 
     spinner.succeed('Feature added successfully 🚀');
   } catch (error: unknown) {
@@ -51,6 +64,7 @@ async function addCicd(config: AddConfig, projectInfo: ProjectInfo) {
   );
 
   if (notifications.includes('slack')) {
+    await validateCicdTemplate('slack-notification.yml');
     await copyIfMissing(
       path.join(templatesRoot, 'cicd', 'slack-notification.yml'),
       path.join(workflowDir, 'slack-notification.yml'),
@@ -60,6 +74,7 @@ async function addCicd(config: AddConfig, projectInfo: ProjectInfo) {
   }
 
   if (notifications.includes('discord')) {
+    await validateCicdTemplate('discord-notification.yml');
     await copyIfMissing(
       path.join(templatesRoot, 'cicd', 'discord-notification.yml'),
       path.join(workflowDir, 'discord-notification.yml'),
@@ -691,20 +706,13 @@ function stepLabel(scriptName: string): string {
   }
 }
 
-function resolveTemplatesRoot(): string {
-  const candidates = [
-    fileURLToPath(new URL('../templates', import.meta.url)),
-    fileURLToPath(new URL('../../templates', import.meta.url))
-  ];
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-
-  throw new Error(
-    `Templates directory not found. Checked: ${candidates.join(', ')}`
+async function validateCicdTemplate(
+  templateFile: 'slack-notification.yml' | 'discord-notification.yml'
+) {
+  await validateTemplateDirectory(
+    path.join(templatesRoot, 'cicd'),
+    [templateFile],
+    'CI/CD notification templates'
   );
 }
 

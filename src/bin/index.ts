@@ -3,8 +3,10 @@
 import { add } from '../commands/add.js';
 import { app } from '../commands/app.js';
 import { backend } from '../commands/backend.js';
+import { doctor } from '../commands/doctor.js';
 import { frontend } from '../commands/frontend.js';
 import { init } from '../commands/init.js';
+import { resume } from '../commands/resume.js';
 
 const command = process.argv[2];
 
@@ -26,8 +28,16 @@ switch (command) {
     backend();
     break;
 
+  case 'doctor':
+    doctor();
+    break;
+
   case 'frontend':
     frontend();
+    break;
+
+  case 'resume':
+    resume();
     break;
 
   default:
@@ -39,7 +49,9 @@ Usage:
   setup add
   setup app <firebase-auth|supabase> --frontend|--backend
   setup backend
+  setup doctor [node|android|backend]
   setup frontend
   setup init
+  setup resume
 `);
 }

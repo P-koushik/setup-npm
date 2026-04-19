@@ -4,68 +4,61 @@ import inquirer from 'inquirer';
 import path from 'path';
 import { buildBackend } from '../engine/backendBuilder.js';
 import { buildFrontend } from '../engine/frontendBuilder.js';
+import {
+  ensureAndroidPreflight,
+  ensureJavaPreflight,
+  ensureNodePreflight,
+  ensurePythonPreflight
+} from '../engine/validators/preflight.js';
 import { BackendConfig } from '../types/backend-config.js';
 import { FrontendConfig } from '../types/frontend-config.js';
+import {
+  hasFlag,
+  inferPackageManager,
+  readFlagValue
+} from '../utils/cli-flags.js';
+import {
+  beginRun,
+  clearRun,
+  completeStep,
+  failStep,
+  loadState,
+  updateProjectConfig
+} from '../utils/state.js';
 
-export async function init() {
+export async function init(preset?: Record<string, unknown>) {
   try {
-    const baseAnswers = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'projectName',
-        message: 'Project name:',
-        validate: (input: string) => (input ? true : 'Project name is required')
-      },
-      {
-        type: 'confirm',
-        name: 'useMonorepo',
-        message: 'Use monorepo structure?',
-        default: true
-      },
-      {
-        type: 'list',
-        name: 'packageManager',
-        message: 'Choose package manager:',
-        choices: [
-          { name: 'npm', value: 'npm' },
-          { name: 'pnpm', value: 'pnpm' },
-          { name: 'yarn', value: 'yarn' },
-          { name: 'bun', value: 'bun' }
-        ],
-        default: 'npm'
-      },
-      {
-        type: 'checkbox',
-        name: 'stacks',
-        message: 'Choose stacks to setup:',
-        choices: [
-          { name: 'Frontend', value: 'frontend' },
-          { name: 'Backend', value: 'backend' }
-        ],
-        validate: (input: string[]) =>
-          input.length > 0 ? true : 'Select at least one stack'
-      }
-    ]);
+    const parsedArgs = preset ? null : parseInitFlags(process.argv.slice(3));
+    const baseAnswers = await resolveInitBaseAnswers(
+      (preset?.baseAnswers as Partial<InitBaseAnswers> | undefined) ??
+        parsedArgs?.baseAnswers
+    );
 
-    let frontendConfig: FrontendConfig | null = null;
-    let backendConfig: BackendConfig | null = null;
+    let frontendConfig: FrontendConfig | null =
+      (preset?.frontendConfig as FrontendConfig | null) ?? null;
+    let backendConfig: BackendConfig | null =
+      (preset?.backendConfig as BackendConfig | null) ?? null;
     const namingSeed = baseAnswers.useMonorepo
       ? '__monorepo__'
       : baseAnswers.projectName;
 
-    if (baseAnswers.stacks.includes('frontend')) {
+    if (!frontendConfig && baseAnswers.stacks.includes('frontend')) {
       frontendConfig = await askFrontendConfig(
         namingSeed,
-        baseAnswers.packageManager
+        baseAnswers.packageManager,
+        parsedArgs?.frontendConfig
       );
     }
 
-    if (baseAnswers.stacks.includes('backend')) {
+    if (!backendConfig && baseAnswers.stacks.includes('backend')) {
       backendConfig = await askBackendConfig(
         namingSeed,
-        baseAnswers.packageManager
+        baseAnswers.packageManager,
+        parsedArgs?.backendConfig
       );
     }
+
+    await runInitPreflight(frontendConfig, backendConfig);
 
     validateMonorepoSelection(baseAnswers.useMonorepo, backendConfig);
 
@@ -76,50 +69,130 @@ export async function init() {
     }
 
     await fs.ensureDir(rootDir);
+    const existingState = await loadState(rootDir);
+
+    if (!existingState) {
+      await beginRun(rootDir, {
+        command: 'init',
+        projectPath: rootDir,
+        input: {
+          baseAnswers,
+          frontendConfig,
+          backendConfig
+        },
+        steps: [
+          { id: 'create-workspace-root', status: 'pending' },
+          { id: 'scaffold-frontend', status: 'pending' },
+          { id: 'scaffold-backend', status: 'pending' },
+          { id: 'bootstrap-workspace', status: 'pending' }
+        ]
+      });
+    }
 
     if (baseAnswers.useMonorepo) {
-      await createWorkspaceRoot(
-        rootDir,
-        baseAnswers.packageManager,
-        workspaceScope(baseAnswers.projectName)
-      );
+      try {
+        if (
+          !existingState?.steps.some(
+            (step) =>
+              step.id === 'create-workspace-root' && step.status === 'completed'
+          )
+        ) {
+          await createWorkspaceRoot(
+            rootDir,
+            baseAnswers.packageManager,
+            workspaceScope(baseAnswers.projectName)
+          );
+          await completeStep(rootDir, 'create-workspace-root');
+        }
+      } catch {
+        await failStep(rootDir, 'create-workspace-root');
+        throw new Error('Workspace root creation failed');
+      }
     }
 
     if (frontendConfig) {
-      await buildFrontend({
-        ...frontendConfig,
-        destinationDir: baseAnswers.useMonorepo
-          ? path.join(rootDir, 'apps')
-          : rootDir
-      });
+      try {
+        if (
+          !existingState?.steps.some(
+            (step) =>
+              step.id === 'scaffold-frontend' && step.status === 'completed'
+          )
+        ) {
+          await buildFrontend({
+            ...frontendConfig,
+            destinationDir: baseAnswers.useMonorepo
+              ? path.join(rootDir, 'apps')
+              : rootDir
+          });
 
-      if (baseAnswers.useMonorepo) {
-        await wireMonorepoFrontend(
-          rootDir,
-          frontendConfig,
-          workspaceScope(baseAnswers.projectName)
-        );
+          if (baseAnswers.useMonorepo) {
+            await wireMonorepoFrontend(
+              rootDir,
+              frontendConfig,
+              workspaceScope(baseAnswers.projectName)
+            );
+          }
+          await completeStep(rootDir, 'scaffold-frontend');
+        }
+      } catch {
+        await failStep(rootDir, 'scaffold-frontend');
+        throw new Error('Frontend scaffolding failed');
       }
     }
 
     if (backendConfig) {
-      await buildBackend({
-        ...backendConfig,
-        destinationDir: baseAnswers.useMonorepo
-          ? path.join(rootDir, 'apps')
-          : rootDir
-      });
+      try {
+        if (
+          !existingState?.steps.some(
+            (step) =>
+              step.id === 'scaffold-backend' && step.status === 'completed'
+          )
+        ) {
+          await buildBackend({
+            ...backendConfig,
+            destinationDir: baseAnswers.useMonorepo
+              ? path.join(rootDir, 'apps')
+              : rootDir
+          });
+          await completeStep(rootDir, 'scaffold-backend');
+        }
+      } catch {
+        await failStep(rootDir, 'scaffold-backend');
+        throw new Error('Backend scaffolding failed');
+      }
     }
 
     if (baseAnswers.useMonorepo) {
-      await wireWorkspaceApps(
-        rootDir,
-        workspaceScope(baseAnswers.projectName),
-        Boolean(frontendConfig),
-        Boolean(backendConfig)
-      );
-      bootstrapWorkspace(rootDir, baseAnswers.packageManager);
+      try {
+        if (
+          !existingState?.steps.some(
+            (step) =>
+              step.id === 'bootstrap-workspace' && step.status === 'completed'
+          )
+        ) {
+          await wireWorkspaceApps(
+            rootDir,
+            workspaceScope(baseAnswers.projectName),
+            Boolean(frontendConfig),
+            Boolean(backendConfig)
+          );
+          bootstrapWorkspace(rootDir, baseAnswers.packageManager);
+          await completeStep(rootDir, 'bootstrap-workspace');
+        }
+      } catch {
+        await failStep(rootDir, 'bootstrap-workspace');
+        throw new Error('Workspace bootstrap failed');
+      }
     }
+
+    await updateProjectConfig(rootDir, {
+      projectName: baseAnswers.projectName,
+      monorepo: baseAnswers.useMonorepo,
+      packageManager: baseAnswers.packageManager,
+      frontend: frontendConfig?.framework,
+      backend: backendConfig?.backendType
+    });
+    await clearRun(rootDir);
 
     console.log(`\n✅ Project setup complete at ${rootDir}\n`);
   } catch (error: unknown) {
@@ -133,21 +206,119 @@ export async function init() {
   }
 }
 
+type InitBaseAnswers = {
+  projectName: string;
+  useMonorepo: boolean;
+  packageManager: FrontendConfig['packageManager'];
+  stacks: Array<'frontend' | 'backend'>;
+};
+
+type ParsedInitFlags = {
+  baseAnswers: Partial<InitBaseAnswers>;
+  frontendConfig: Partial<FrontendConfig> | null;
+  backendConfig: Partial<BackendConfig> | null;
+};
+
+async function resolveInitBaseAnswers(
+  initial?: Partial<InitBaseAnswers>
+): Promise<InitBaseAnswers> {
+  const projectName =
+    initial?.projectName ??
+    (
+      await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'projectName',
+          message: 'Project name:',
+          validate: (input: string) =>
+            input ? true : 'Project name is required'
+        }
+      ])
+    ).projectName;
+  const useMonorepo =
+    typeof initial?.useMonorepo === 'boolean'
+      ? initial.useMonorepo
+      : (
+          await inquirer.prompt([
+            {
+              type: 'confirm',
+              name: 'useMonorepo',
+              message: 'Use monorepo structure?',
+              default: true
+            }
+          ])
+        ).useMonorepo;
+  const packageManager =
+    initial?.packageManager ??
+    (
+      await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'packageManager',
+          message: 'Choose package manager:',
+          choices: [
+            { name: 'npm', value: 'npm' },
+            { name: 'pnpm', value: 'pnpm' },
+            { name: 'yarn', value: 'yarn' },
+            { name: 'bun', value: 'bun' }
+          ],
+          default: 'npm'
+        }
+      ])
+    ).packageManager;
+  const stacks =
+    initial?.stacks && initial.stacks.length > 0
+      ? initial.stacks
+      : (
+          await inquirer.prompt([
+            {
+              type: 'checkbox',
+              name: 'stacks',
+              message: 'Choose stacks to setup:',
+              choices: [
+                { name: 'Frontend', value: 'frontend' },
+                { name: 'Backend', value: 'backend' }
+              ],
+              validate: (input: string[]) =>
+                input.length > 0 ? true : 'Select at least one stack'
+            }
+          ])
+        ).stacks;
+
+  return {
+    projectName,
+    useMonorepo,
+    packageManager,
+    stacks
+  };
+}
+
 async function askFrontendConfig(
   projectName: string,
-  packageManager: FrontendConfig['packageManager']
+  packageManager: FrontendConfig['packageManager'],
+  partial?: Partial<FrontendConfig> | null
 ): Promise<FrontendConfig> {
-  const { platform } = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'platform',
-      message: 'Choose frontend platform:',
-      choices: [
-        { name: 'Web 🌐', value: 'web' },
-        { name: 'Native 📱', value: 'native' }
-      ]
-    }
-  ]);
+  let platform = partial?.platform;
+
+  if (!platform) {
+    platform = (
+      await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'platform',
+          message: 'Choose frontend platform:',
+          choices: [
+            { name: 'Web 🌐', value: 'web' },
+            { name: 'Native 📱', value: 'native' }
+          ]
+        }
+      ])
+    ).platform;
+  }
+
+  if (!platform) {
+    throw new Error('Frontend platform is required');
+  }
 
   const frameworkChoices =
     platform === 'web'
@@ -162,14 +333,20 @@ async function askFrontendConfig(
           { name: 'React Native CLI', value: 'react-native' }
         ];
 
-  const { framework } = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'framework',
-      message: 'Choose frontend framework:',
-      choices: frameworkChoices
-    }
-  ]);
+  let framework = partial?.framework;
+
+  if (!framework) {
+    framework = (
+      await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'framework',
+          message: 'Choose frontend framework:',
+          choices: frameworkChoices
+        }
+      ])
+    ).framework;
+  }
 
   return {
     platform,
@@ -181,45 +358,61 @@ async function askFrontendConfig(
 
 async function askBackendConfig(
   projectName: string,
-  packageManager: BackendConfig['packageManager']
+  packageManager: BackendConfig['packageManager'],
+  partial?: Partial<BackendConfig> | null
 ): Promise<BackendConfig> {
-  const baseAnswers = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'backendType',
-      message: 'Choose backend type:',
-      choices: [
-        { name: 'Express', value: 'express' },
-        { name: 'NestJS', value: 'nestjs' },
-        { name: 'FastAPI', value: 'fastapi' },
-        { name: 'Django', value: 'django' },
-        { name: 'Spring Boot', value: 'springboot' }
-      ],
-      default: 'express'
-    }
-  ]);
+  const baseAnswers = partial?.backendType
+    ? { backendType: partial.backendType }
+    : await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'backendType',
+          message: 'Choose backend type:',
+          choices: [
+            { name: 'Express', value: 'express' },
+            { name: 'NestJS', value: 'nestjs' },
+            { name: 'FastAPI', value: 'fastapi' },
+            { name: 'Django', value: 'django' },
+            { name: 'Spring Boot', value: 'springboot' }
+          ],
+          default: 'express'
+        }
+      ]);
 
   let backendAnswers = {};
 
   if (baseAnswers.backendType === 'express') {
-    backendAnswers = await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'language',
-        message: 'Choose backend language:',
-        choices: [
-          { name: 'TypeScript (recommended)', value: 'TypeScript' },
-          { name: 'JavaScript', value: 'JavaScript' }
-        ],
-        default: 'TypeScript'
-      },
-      {
-        type: 'confirm',
-        name: 'useMongo',
-        message: 'Use MongoDB?',
-        default: true
-      }
-    ]);
+    const language =
+      partial?.language ??
+      (
+        await inquirer.prompt([
+          {
+            type: 'list',
+            name: 'language',
+            message: 'Choose backend language:',
+            choices: [
+              { name: 'TypeScript (recommended)', value: 'TypeScript' },
+              { name: 'JavaScript', value: 'JavaScript' }
+            ],
+            default: 'TypeScript'
+          }
+        ])
+      ).language;
+    const useMongo =
+      typeof partial?.useMongo === 'boolean'
+        ? partial.useMongo
+        : (
+            await inquirer.prompt([
+              {
+                type: 'confirm',
+                name: 'useMongo',
+                message: 'Use MongoDB?',
+                default: true
+              }
+            ])
+          ).useMongo;
+
+    backendAnswers = { language, useMongo };
   }
 
   return {
@@ -547,6 +740,232 @@ function validateMonorepoSelection(
       'Turborepo monorepo setup currently supports JavaScript/TypeScript backends like Express or NestJS for apps/api'
     );
   }
+}
+
+async function runInitPreflight(
+  frontendConfig: FrontendConfig | null,
+  backendConfig: BackendConfig | null
+) {
+  if (
+    frontendConfig ||
+    backendConfig?.backendType === 'express' ||
+    backendConfig?.backendType === 'nestjs'
+  ) {
+    await ensureNodePreflight();
+  }
+
+  if (frontendConfig?.framework === 'react-native') {
+    await ensureAndroidPreflight();
+  }
+
+  if (
+    backendConfig?.backendType === 'fastapi' ||
+    backendConfig?.backendType === 'django'
+  ) {
+    await ensurePythonPreflight();
+  }
+
+  if (backendConfig?.backendType === 'springboot') {
+    await ensureJavaPreflight();
+  }
+}
+
+function parseInitFlags(args: string[]): ParsedInitFlags {
+  const packageManager = inferPackageManager(args);
+  const projectName = readFlagValue(args, '--name', '--project-name');
+  const useMonorepo = hasFlag(args, '--monorepo')
+    ? true
+    : hasFlag(args, '--no-monorepo')
+      ? false
+      : undefined;
+  const stacks = inferStacks(args);
+  const frontendFramework = inferInitFrontendFramework(args);
+  const backendType = inferInitBackendType(args);
+  const frontendPlatform =
+    frontendFramework === 'expo' || frontendFramework === 'react-native'
+      ? 'native'
+      : frontendFramework
+        ? 'web'
+        : inferInitFrontendPlatform(args);
+
+  return {
+    baseAnswers: {
+      projectName,
+      useMonorepo,
+      packageManager,
+      stacks
+    },
+    frontendConfig:
+      frontendFramework || frontendPlatform
+        ? {
+            platform: frontendPlatform,
+            framework: frontendFramework,
+            packageManager
+          }
+        : null,
+    backendConfig:
+      backendType ||
+      inferInitLanguage(args) ||
+      typeof inferInitMongoPreference(args) === 'boolean'
+        ? {
+            backendType,
+            language: inferInitLanguage(args),
+            useMongo: inferInitMongoPreference(args),
+            packageManager
+          }
+        : null
+  };
+}
+
+function inferStacks(
+  args: string[]
+): Array<'frontend' | 'backend'> | undefined {
+  const stacks: Array<'frontend' | 'backend'> = [];
+
+  if (hasFlag(args, '--frontend')) {
+    stacks.push('frontend');
+  }
+
+  if (hasFlag(args, '--backend')) {
+    stacks.push('backend');
+  }
+
+  if (stacks.length > 0) {
+    return stacks;
+  }
+
+  return undefined;
+}
+
+function inferInitFrontendPlatform(
+  args: string[]
+): FrontendConfig['platform'] | undefined {
+  if (hasFlag(args, '--web') && !hasFlag(args, '--native')) {
+    return 'web';
+  }
+
+  if (hasFlag(args, '--native') && !hasFlag(args, '--web')) {
+    return 'native';
+  }
+
+  return undefined;
+}
+
+function inferInitFrontendFramework(
+  args: string[]
+): FrontendConfig['framework'] | undefined {
+  const value = readFlagValue(args, '--frontend-framework', '--framework');
+
+  if (
+    value === 'next' ||
+    value === 'angular' ||
+    value === 'vue' ||
+    value === 'vite' ||
+    value === 'expo' ||
+    value === 'react-native'
+  ) {
+    return value;
+  }
+
+  if (hasFlag(args, '--next')) {
+    return 'next';
+  }
+
+  if (hasFlag(args, '--angular')) {
+    return 'angular';
+  }
+
+  if (hasFlag(args, '--vue')) {
+    return 'vue';
+  }
+
+  if (hasFlag(args, '--vite')) {
+    return 'vite';
+  }
+
+  if (hasFlag(args, '--expo')) {
+    return 'expo';
+  }
+
+  if (hasFlag(args, '--react-native')) {
+    return 'react-native';
+  }
+
+  return undefined;
+}
+
+function inferInitBackendType(
+  args: string[]
+): BackendConfig['backendType'] | undefined {
+  const value = readFlagValue(args, '--backend-framework', '--framework');
+
+  if (
+    value === 'express' ||
+    value === 'nestjs' ||
+    value === 'fastapi' ||
+    value === 'django' ||
+    value === 'springboot'
+  ) {
+    return value;
+  }
+
+  if (hasFlag(args, '--express')) {
+    return 'express';
+  }
+
+  if (hasFlag(args, '--nestjs')) {
+    return 'nestjs';
+  }
+
+  if (hasFlag(args, '--fastapi')) {
+    return 'fastapi';
+  }
+
+  if (hasFlag(args, '--django')) {
+    return 'django';
+  }
+
+  if (hasFlag(args, '--springboot', '--spring-boot')) {
+    return 'springboot';
+  }
+
+  return undefined;
+}
+
+function inferInitLanguage(
+  args: string[]
+): BackendConfig['language'] | undefined {
+  if (hasFlag(args, '--ts') && !hasFlag(args, '--js')) {
+    return 'TypeScript';
+  }
+
+  if (hasFlag(args, '--js') && !hasFlag(args, '--ts')) {
+    return 'JavaScript';
+  }
+
+  return undefined;
+}
+
+function inferInitMongoPreference(args: string[]) {
+  if (hasFlag(args, '--mongo')) {
+    return true;
+  }
+
+  if (hasFlag(args, '--no-mongo')) {
+    return false;
+  }
+
+  const dbValue = readFlagValue(args, '--db');
+
+  if (dbValue === 'mongo' || dbValue === 'mongodb') {
+    return true;
+  }
+
+  if (dbValue === 'none') {
+    return false;
+  }
+
+  return undefined;
 }
 
 function bootstrapWorkspace(

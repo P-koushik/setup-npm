@@ -1,5 +1,6 @@
 import { execSync } from 'child_process';
 import ora from 'ora';
+import { validateFrontendOutput } from './validators/post-setup.js';
 import { FrontendConfig } from '../types/frontend-config.js';
 
 export async function buildFrontend(config: FrontendConfig) {
@@ -15,6 +16,10 @@ export async function buildFrontend(config: FrontendConfig) {
     );
 
     runPostSetup(config);
+    await validateFrontendOutput(
+      config,
+      resolveProjectDir(config.projectName, config.destinationDir)
+    );
 
     spinner.succeed('Frontend setup complete 🚀');
   } catch (error: unknown) {
