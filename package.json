@@ -27,6 +27,9 @@
     "*.ts": [
       "eslint --fix",
       "prettier --write"
+    ],
+    "*.{js,mjs,cjs,ts,mts,cts,json,md,css,scss,yml,yaml}": [
+      "prettier --write"
     ]
   },
   "devDependencies": {
