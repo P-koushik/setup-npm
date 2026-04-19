@@ -4,8 +4,18 @@ import ora from 'ora';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { BackendConfig } from '../types/backend-config.js';
+import {
+  resolveTemplateRoot,
+  validateTemplateDirectory
+} from './validators/template.js';
 
-const templatesRoot = resolveTemplatesRoot();
+const templatesRoot = resolveTemplateRoot(
+  [
+    fileURLToPath(new URL('../templates/backend', import.meta.url)),
+    fileURLToPath(new URL('../../templates/backend', import.meta.url))
+  ],
+  'Backend templates directory'
+);
 
 export async function buildBackend(config: BackendConfig) {
   const spinner = ora('Setting up backend...').start();
@@ -68,6 +78,7 @@ async function scaffoldExpress(config: BackendConfig, projectPath: string) {
 
   const templateName = config.language === 'TypeScript' ? 'ts' : 'js';
   const templatePath = path.join(templatesRoot, templateName);
+  await validateBackendTemplate(templateName, templatePath);
 
   runStep(`Copying ${config.language} Express template files`);
   await fs.copy(templatePath, projectPath);
@@ -94,6 +105,7 @@ function scaffoldNest(
 
 async function scaffoldFastApi(projectName: string, projectPath: string) {
   const templatePath = path.join(templatesRoot, 'fastapi');
+  await validateBackendTemplate('fastapi', templatePath);
 
   runStep('Copying FastAPI production template files');
   await fs.copy(templatePath, projectPath);
@@ -121,6 +133,7 @@ async function scaffoldFastApi(projectName: string, projectPath: string) {
 
 async function scaffoldDjango(projectName: string, projectPath: string) {
   const templatePath = path.join(templatesRoot, 'django');
+  await validateBackendTemplate('django', templatePath);
 
   runStep('Copying Django production template files');
   await fs.copy(templatePath, projectPath);
@@ -148,6 +161,7 @@ async function scaffoldDjango(projectName: string, projectPath: string) {
 
 async function scaffoldSpringBoot(projectName: string, projectPath: string) {
   const templatePath = path.join(templatesRoot, 'springboot');
+  await validateBackendTemplate('springboot', templatePath);
 
   runStep('Copying Spring Boot template files');
   await fs.copy(templatePath, projectPath);
@@ -246,19 +260,26 @@ function quote(value: string): string {
   return JSON.stringify(value);
 }
 
-function resolveTemplatesRoot(): string {
-  const candidates = [
-    fileURLToPath(new URL('../templates/backend', import.meta.url)),
-    fileURLToPath(new URL('../../templates/backend', import.meta.url))
-  ];
+async function validateBackendTemplate(
+  templateName: 'ts' | 'js' | 'fastapi' | 'django' | 'springboot',
+  templatePath: string
+) {
+  const requiredFiles: Record<typeof templateName, string[]> = {
+    ts: ['package.json', 'src/server.ts', 'src/app.ts', 'README.md'],
+    js: ['package.json', 'src/server.js', 'src/app.js', 'README.md'],
+    fastapi: ['requirements.txt', 'app/main.py', 'README.md'],
+    django: [
+      'manage.py',
+      'requirements.txt',
+      'config/settings.py',
+      'README.md'
+    ],
+    springboot: ['pom.xml', 'README.md']
+  };
 
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-
-  throw new Error(
-    `Backend templates directory not found. Checked: ${candidates.join(', ')}`
+  await validateTemplateDirectory(
+    templatePath,
+    requiredFiles[templateName],
+    `${templateName} backend template`
   );
 }

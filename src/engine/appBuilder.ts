@@ -3,8 +3,18 @@ import ora from 'ora';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { AppConfig } from '../types/app-config.js';
+import {
+  resolveTemplateRoot,
+  validateTemplateDirectory
+} from './validators/template.js';
 
-const templatesRoot = resolveTemplatesRoot();
+const templatesRoot = resolveTemplateRoot(
+  [
+    fileURLToPath(new URL('../templates', import.meta.url)),
+    fileURLToPath(new URL('../../templates', import.meta.url))
+  ],
+  'Templates directory'
+);
 
 export async function buildAppIntegration(config: AppConfig) {
   const spinner = ora('Adding app integration...').start();
@@ -31,9 +41,7 @@ export async function buildAppIntegration(config: AppConfig) {
         : [])
     );
 
-    if (!(await fs.pathExists(sourceDir))) {
-      throw new Error('Integration template not found');
-    }
+    await validateAppTemplate(config, sourceDir);
 
     await fs.ensureDir(destinationDir);
 
@@ -105,19 +113,23 @@ function printSummary(
   console.log('');
 }
 
-function resolveTemplatesRoot(): string {
-  const candidates = [
-    fileURLToPath(new URL('../templates', import.meta.url)),
-    fileURLToPath(new URL('../../templates', import.meta.url))
-  ];
+async function validateAppTemplate(config: AppConfig, templatePath: string) {
+  const requiredFiles =
+    config.provider === 'firebase-auth'
+      ? config.target === 'backend'
+        ? ['README.md', 'firebaseAdmin.ts', 'authMiddleware.ts']
+        : config.frontendPlatform === 'mobile'
+          ? ['README.md', 'firebaseClient.ts', 'auth.ts']
+          : ['README.md', 'firebaseClient.ts', 'auth.ts']
+      : config.target === 'backend'
+        ? ['README.md', 'supabaseServer.ts', 'authService.ts']
+        : config.frontendPlatform === 'mobile'
+          ? ['README.md', 'supabaseClient.ts', 'auth.ts']
+          : ['README.md', 'supabaseClient.ts', 'auth.ts'];
 
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-
-  throw new Error(
-    `Templates directory not found. Checked: ${candidates.join(', ')}`
+  await validateTemplateDirectory(
+    templatePath,
+    requiredFiles,
+    `${config.provider} ${config.target} integration template`
   );
 }
