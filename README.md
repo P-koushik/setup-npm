@@ -1,8 +1,8 @@
-# Setup CLI
+# Setupforge
 
 ## Introduction
 
-The **Setup CLI** is a command-line tool that automates the process of creating and extending modern development projects. It can scaffold **frontend apps**, **backend services**, and **Turborepo-style monorepos**, while also adding integrations, CI/CD workflows, and development tooling safely.
+The **Setupforge** is a command-line tool that automates the process of creating and extending modern development projects. It can scaffold **frontend apps**, **backend services**, and **Turborepo-style monorepos**, while also adding integrations, CI/CD workflows, and development tooling safely.
 
 It is built to focus on:
 
