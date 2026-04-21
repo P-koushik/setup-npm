@@ -8,6 +8,7 @@ import {
   ensureAndroidPreflight,
   ensureJavaPreflight,
   ensureNodePreflight,
+  ensurePackageManagerAvailable,
   ensurePythonPreflight
 } from '../engine/validators/preflight.js';
 import { BackendConfig } from '../types/backend-config.js';
@@ -176,7 +177,7 @@ export async function init(preset?: Record<string, unknown>) {
             Boolean(frontendConfig),
             Boolean(backendConfig)
           );
-          bootstrapWorkspace(rootDir, baseAnswers.packageManager);
+          await bootstrapWorkspace(rootDir, baseAnswers.packageManager);
           await completeStep(rootDir, 'bootstrap-workspace');
         }
       } catch {
@@ -968,11 +969,13 @@ function inferInitMongoPreference(args: string[]) {
   return undefined;
 }
 
-function bootstrapWorkspace(
+async function bootstrapWorkspace(
   rootDir: string,
   packageManager: FrontendConfig['packageManager']
 ) {
-  const command = installCommand(packageManager ?? 'npm');
+  const resolvedPackageManager = packageManager ?? 'npm';
+  await ensurePackageManagerAvailable(resolvedPackageManager);
+  const command = installCommand(resolvedPackageManager);
 
   console.log('\n▶ Bootstrapping monorepo dependencies');
   console.log(`$ cd ${rootDir} && ${command}\n`);

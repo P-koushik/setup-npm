@@ -1,6 +1,10 @@
 import { execSync } from 'child_process';
 import ora from 'ora';
 import { validateFrontendOutput } from './validators/post-setup.js';
+import {
+  ensureCommandAvailable,
+  ensurePackageManagerAvailable
+} from './validators/preflight.js';
 import { FrontendConfig } from '../types/frontend-config.js';
 
 export async function buildFrontend(config: FrontendConfig) {
@@ -8,6 +12,7 @@ export async function buildFrontend(config: FrontendConfig) {
 
   try {
     spinner.stop(); // stop spinner before interactive CLI
+    await ensureFrontendTooling(config);
 
     runCommand(
       `Scaffolding ${config.framework} project`,
@@ -133,5 +138,17 @@ function installCommand(
       return 'bun install';
     case 'npm':
       return 'npm install';
+  }
+}
+
+async function ensureFrontendTooling(config: FrontendConfig) {
+  const packageManager = config.packageManager ?? 'npm';
+  await ensurePackageManagerAvailable(packageManager);
+
+  if (
+    packageManager === 'npm' &&
+    ['next', 'angular', 'expo', 'react-native'].includes(config.framework)
+  ) {
+    await ensureCommandAvailable('npx', ['Install Node.js with npm and npx']);
   }
 }
