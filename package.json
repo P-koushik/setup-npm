@@ -1,6 +1,6 @@
 {
   "name": "@koushik.p05/setup",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "CLI tool to scaffold fullstack projects",
   "license": "MIT",
   "author": "Koushik",
