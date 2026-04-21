@@ -1,155 +1,293 @@
-# setup
+# Setup CLI
 
-CLI tool for scaffolding frontend, backend, monorepo, CI/CD, tooling, and service integrations.
+## Introduction
 
-## Requirements
+The **Setup CLI** is a command-line tool that automates the process of creating and extending modern development projects. It can scaffold **frontend apps**, **backend services**, and **Turborepo-style monorepos**, while also adding integrations, CI/CD workflows, and development tooling safely.
 
-- Node.js 18+
+It is built to focus on:
 
-## Install
+- **reliable project setup**
+- **safe modifications**
+- **clear error handling**
+- **resume support after failures**
+- **plugin-based extensibility**
 
-```bash
+---
+
+## Features
+
+- Initializes a **frontend** with:
+  - `Next.js`
+  - `Angular`
+  - `Vue`
+  - `Vite + React`
+  - `Expo`
+  - `React Native CLI`
+
+- Initializes a **backend** with:
+  - `Express`
+  - `NestJS`
+  - `FastAPI`
+  - `Django`
+  - `Spring Boot`
+
+- Initializes a **monorepo** with:
+  - `apps/web`
+  - `apps/api`
+  - `packages/types`
+  - `packages/models`
+  - `packages/eslint-config`
+  - `packages/typescript-config`
+  - `turbo.json`
+
+- Adds project features safely with:
+  - `CI/CD pipeline`
+  - `Slack notifications`
+  - `Discord notifications`
+  - `Linting`
+  - `Formatting`
+  - `Git hooks`
+  - `Firebase Auth`
+  - `Supabase`
+
+- Includes built-in reliability features:
+  - `setup doctor`
+  - `setup resume`
+  - `.setuprc` project metadata
+  - `.setup/state.json` runtime progress tracking
+  - preflight environment validation
+  - post-setup validation
+  - template validation before copy
+
+---
+
+## Installation
+
+To install the CLI globally from npm:
+
+```sh
+npm install -g @koushik.p05/setup
+```
+
+If you want to use it locally in this repo:
+
+```sh
 npm install
 npm run build
 ```
 
-For local development:
+---
 
-```bash
-npm run dev
+## Usage
+
+To start the guided setup flow:
+
+```sh
+setup
 ```
 
-## Commands
+or:
 
-### Guided setup
-
-```bash
-setup
+```sh
 setup init
 ```
 
-Starts the guided project flow. It asks for:
+To scaffold only a frontend:
 
-- project name
-- monorepo or not
-- package manager
-- frontend, backend, or both
-
-If monorepo is selected, the generator creates a Turborepo-style structure:
-
-```text
-apps/
-  web/
-  api/
-packages/
-  eslint-config/
-  typescript-config/
-  types/
-  models/
-package.json
-turbo.json
-```
-
-The monorepo root includes:
-
-- Turbo scripts for `dev`, `build`, `lint`, and `typecheck`
-- workspace configuration
-- shared packages for types and models
-- app dependencies on `@<project>/types` and `@<project>/models`
-- Turbo `dev` configured to use the TUI
-
-Current monorepo support is intended for JS/TS backends such as Express and NestJS.
-
-### Frontend only
-
-```bash
+```sh
 setup frontend
 ```
 
-Supported frontend scaffolds:
+To scaffold only a backend:
 
-- Next.js
-- Angular
-- Vue
-- React via Vite
-- Expo
-- React Native CLI
-
-Flag-driven usage is supported. Examples:
-
-```bash
-setup frontend --next --name web-app
-setup frontend --platform native --framework expo --name mobile-app
-setup frontend --vue --pnpm --name dashboard
-```
-
-If only some flags are provided, the CLI prompts only for the missing values.
-
-### Backend only
-
-```bash
+```sh
 setup backend
 ```
 
-Supported backend scaffolds:
+To add features to an existing project:
 
-- Express
-- NestJS
-- FastAPI
-- Django
-- Spring Boot
-
-Express uses local templates. NestJS uses the official CLI. FastAPI, Django, and Spring Boot use local production-oriented starters.
-
-Flag-driven usage is supported. Examples:
-
-```bash
-setup backend --framework express --db mongo --ts --name api
-setup backend --nestjs --name api
-setup backend --framework django --name server
+```sh
+setup add
 ```
 
-If only some flags are provided, the CLI prompts only for the missing values.
+To add app integrations directly:
 
-### Doctor
+```sh
+setup app firebase-auth --web
+setup app firebase-auth --mobile
+setup app firebase-auth --backend
 
-```bash
+setup app supabase --web
+setup app supabase --mobile
+setup app supabase --backend
+```
+
+To inspect your environment:
+
+```sh
 setup doctor
 setup doctor node
 setup doctor android
 setup doctor backend
 ```
 
-Doctor runs environment checks before you scaffold or integrate features:
+To continue a failed setup:
 
-- Node: Node.js version and package manager availability
-- Android: `ANDROID_HOME`, SDK path, `adb`, and `emulator`
-- Backend: Python and Java tooling
-
-Failed checks print actionable fixes instead of continuing blindly.
-
-### Resume
-
-```bash
+```sh
 setup resume
 ```
 
-The CLI persists runtime progress and can continue from the last failed step without re-running completed steps.
+---
 
-### Project state
+## Folder Structure
 
-Managed projects now write:
+### Monorepo Example
 
-- `.setuprc` for project metadata
-- `.setup/state.json` for resumable runtime state
-
-### Add features
-
-```bash
-setup add
+```text
+my-app/
+│── apps/
+│   ├── web/
+│   ├── api/
+│
+│── packages/
+│   ├── eslint-config/
+│   ├── typescript-config/
+│   ├── types/
+│   ├── models/
+│
+│── .setup/
+│   ├── state.json
+│
+│── .setuprc
+│── package.json
+│── turbo.json
+│── pnpm-workspace.yaml   # if pnpm is selected
 ```
 
-Interactive add-ons:
+### Standard Project Example
+
+```text
+my-app/
+│── frontend/
+│── backend/
+│── .setup/
+│   ├── state.json
+│── .setuprc
+```
+
+---
+
+## Steps Executed by the CLI
+
+### 1️⃣ Guided Setup
+
+- Asks for:
+  - project name
+  - monorepo or standard structure
+  - package manager
+  - frontend, backend, or both
+- Prompts only for missing values when flags are partially provided.
+- Writes `.setuprc` and runtime state tracking.
+
+### 2️⃣ Frontend Setup
+
+- Creates the selected frontend app.
+- Uses the matching framework generator.
+- Installs dependencies when required by that stack.
+- Validates generated output after setup.
+
+### 3️⃣ Backend Setup
+
+- Creates the selected backend app.
+- Uses:
+  - local templates for Express, FastAPI, Django, and Spring Boot
+  - official CLI for NestJS
+- Installs dependencies or resolves environment setup when required.
+- Validates generated output after setup.
+
+### 4️⃣ Monorepo Setup
+
+- Creates a Turborepo-style root.
+- Adds workspace apps and shared packages.
+- Wires shared package imports like:
+
+```ts
+import { User } from '@my-app/types/user';
+import { userModel } from '@my-app/models/user-model';
+```
+
+- Bootstraps workspace dependencies.
+- Configures Turbo dev flow with TUI support.
+
+### 5️⃣ Add Features
+
+- Detects the current project type.
+- Validates plugin/template availability.
+- Applies only safe file changes.
+- Skips or merges existing config instead of duplicating.
+
+---
+
+## Example Workflow
+
+```sh
+setup init
+```
+
+**Setup Output:**
+
+```sh
+? Project name: my-app
+? Use monorepo structure? Yes
+? Choose package manager: npm
+? Choose stacks to setup: Frontend, Backend
+? Choose frontend platform: Web
+? Choose frontend framework: Next.js
+? Choose backend type: Express
+? Choose backend language: TypeScript
+? Use MongoDB? Yes
+```
+
+**CLI Progress Output:**
+
+```sh
+▶ Creating workspace root
+▶ Scaffolding next project
+▶ Installing dependencies
+▶ Copying TypeScript Express template files
+▶ Bootstrapping monorepo dependencies
+✅ Project setup complete
+```
+
+---
+
+## Flags Support
+
+The CLI supports non-interactive and partially interactive execution.
+
+### Frontend Examples
+
+```sh
+setup frontend --next --name web-app
+setup frontend --vue --pnpm --name dashboard
+setup frontend --platform native --framework expo --name mobile-app
+```
+
+### Backend Examples
+
+```sh
+setup backend --framework express --db mongo --ts --name api
+setup backend --nestjs --name api
+setup backend --framework django --name server
+```
+
+If some values are missing, the CLI asks only for those missing inputs.
+
+---
+
+## Add Command
+
+Interactive `setup add` supports:
 
 - CI/CD pipeline
 - Slack notifications
@@ -162,7 +300,7 @@ Interactive add-ons:
 
 Direct usage also works:
 
-```bash
+```sh
 setup add cicd
 setup add slack
 setup add discord
@@ -175,91 +313,63 @@ setup add supabase --mobile
 setup add supabase --backend
 ```
 
-If the command already provides enough information, the CLI skips prompts and starts scaffolding immediately.
-
-`setup add` is idempotent:
+The add flow is **idempotent**, which means:
 
 - existing generated files are skipped
 - known config updates merge safely
-- repeated runs avoid duplicating scripts, dependencies, or templates
+- repeated runs avoid duplicate scripts and dependencies
 
-## CI/CD scaffolding
+---
 
-`setup add cicd` generates project-aware GitHub Actions workflow files in `.github/workflows/`.
+## Doctor System
 
-Supported detection:
+The doctor command checks the environment before important setup steps.
 
-- Node.js projects from `package.json`
-- Python projects from `pyproject.toml`, `requirements.txt`, or `manage.py`
-- Java projects from `pom.xml`, `build.gradle`, or `build.gradle.kts`
+### Node Checks
 
-Notification add-ons:
+- Node.js version `>= 18`
 
-- Slack: requires `SLACK_WEBHOOK_URL`
-- Discord: requires `DISCORD_WEBHOOK_URL`
+### Android Checks
 
-## Tooling scaffolding
+- `ANDROID_HOME` / `ANDROID_SDK_ROOT`
+- SDK directory exists
+- `adb` available
+- `emulator` available
 
-`setup add linting formatting git-hooks` can create and update:
+### Backend Checks
 
-- `eslint.config.mjs`
-- `.prettierrc`
-- `.husky/pre-commit`
-- `package.json` scripts
-- `package.json` devDependencies
-- `package.json` lint-staged config
+- Python availability
+- Java availability
 
-This currently targets `package.json` projects.
+Example:
 
-## App integrations
+```sh
+✔ Node version OK
+✖ Android SDK not found
 
-### Firebase Auth
-
-Supported targets:
-
-- frontend web
-- frontend mobile
-- backend
-
-Examples:
-
-```bash
-setup add firebase-auth --web
-setup add firebase-auth --mobile
-setup add firebase-auth --backend
+Fix:
+- Install Android Studio
+- Set ANDROID_HOME
+- Add platform-tools to PATH
 ```
 
-Generated templates are placed under:
+---
 
-```text
-integrations/firebase-auth/...
+## Resume System
+
+If a setup step fails, the CLI stores progress and allows recovery with:
+
+```sh
+setup resume
 ```
 
-### Supabase
+This avoids re-running already completed steps.
 
-Supported targets:
+---
 
-- frontend web
-- frontend mobile
-- backend
+## Plugin System
 
-Examples:
-
-```bash
-setup add supabase --web
-setup add supabase --mobile
-setup add supabase --backend
-```
-
-Generated templates are placed under:
-
-```text
-integrations/supabase/...
-```
-
-## Plugin system
-
-Built-in feature application now runs through a plugin registry.
+The CLI includes a plugin-based architecture for feature extensions.
 
 Current built-in plugins:
 
@@ -267,31 +377,49 @@ Current built-in plugins:
 - `firebase-auth`
 - `supabase`
 
-Each plugin follows a deterministic flow:
+Each plugin follows this flow:
 
-1. detect current project context
+1. detect project context
 2. validate applicability
-3. apply safe file changes
-4. run post-setup validation
+3. apply safe changes
+4. validate output
 
-Templates are validated before copy, and generated output is validated after setup.
+---
 
-## Monorepo notes
+## Development Scripts
 
-In generated monorepos:
-
-- frontend app names default to `web`
-- backend app names default to `api`
-- native frontend app names default to `mobile`
-- shared imports are intended to use package names such as `@your-project/types/...`
-
-The root `dev` script uses Turborepo TUI, and shared packages are built before dependent apps start.
-
-## Development scripts
-
-```bash
+```sh
 npm run build
 npm run lint
 npm run format
 npm run typecheck
 ```
+
+---
+
+## License
+
+MIT License
+
+---
+
+## Future Improvements
+
+- External plugin loading
+- More backend and frontend stacks
+- More monorepo presets
+- Docker and deployment templates
+- richer project-aware CI generation
+
+---
+
+## Contributing
+
+Feel free to open issues or submit pull requests to improve the CLI.
+
+---
+
+## Links
+
+- **NPM Package:** [https://www.npmjs.com/package/@koushik.p05/setup](https://www.npmjs.com/package/@koushik.p05/setup)
+- **GitHub Repository:** [https://github.com/P-koushik/setup-npm](https://github.com/P-koushik/setup-npm)

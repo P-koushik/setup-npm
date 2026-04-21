@@ -1,6 +1,6 @@
 {
-  "name": "@koushik.p05/setup",
-  "version": "1.0.2",
+  "name": "setupforge",
+  "version": "1.0.0",
   "description": "CLI tool to scaffold fullstack projects",
   "license": "MIT",
   "author": "Koushik",
