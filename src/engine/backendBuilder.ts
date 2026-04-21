@@ -9,6 +9,10 @@ import {
   validateTemplateDirectory
 } from './validators/template.js';
 import { validateBackendOutput } from './validators/post-setup.js';
+import {
+  ensureCommandAvailable,
+  ensurePackageManagerAvailable
+} from './validators/preflight.js';
 
 const templatesRoot = resolveTemplateRoot(
   [
@@ -37,7 +41,7 @@ export async function buildBackend(config: BackendConfig) {
         break;
 
       case 'nestjs':
-        scaffoldNest(
+        await scaffoldNest(
           config.projectName,
           config.packageManager,
           config.destinationDir ?? process.cwd()
@@ -79,6 +83,8 @@ async function scaffoldExpress(config: BackendConfig, projectPath: string) {
     throw new Error('Express setup requires a language selection');
   }
 
+  await ensurePackageManagerAvailable(config.packageManager ?? 'npm');
+
   const templateName = config.language === 'TypeScript' ? 'ts' : 'js';
   const templatePath = path.join(templatesRoot, templateName);
   await validateBackendTemplate(templateName, templatePath);
@@ -92,11 +98,13 @@ async function scaffoldExpress(config: BackendConfig, projectPath: string) {
   );
 }
 
-function scaffoldNest(
+async function scaffoldNest(
   projectName: string,
   packageManager: BackendConfig['packageManager'],
   cwd: string
 ) {
+  await ensureNestTooling(packageManager ?? 'npm');
+
   runCommand(
     'Scaffolding NestJS project',
     `${packageManager === 'bun' ? 'bunx' : 'npx'} @nestjs/cli@latest new ${quote(
@@ -261,6 +269,16 @@ function runStep(step: string, command?: string) {
 
 function quote(value: string): string {
   return JSON.stringify(value);
+}
+
+async function ensureNestTooling(
+  packageManager: 'npm' | 'pnpm' | 'yarn' | 'bun'
+) {
+  await ensurePackageManagerAvailable(packageManager);
+
+  if (packageManager === 'npm') {
+    await ensureCommandAvailable('npx', ['Install Node.js with npm and npx']);
+  }
 }
 
 async function validateBackendTemplate(
