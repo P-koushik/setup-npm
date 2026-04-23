@@ -51,8 +51,8 @@ It is built to focus on:
   - `Supabase`
 
 - Includes built-in reliability features:
-  - `setup doctor`
-  - `setup resume`
+  - `setupforge doctor`
+  - `setupforge resume`
   - `.setuprc` project metadata
   - `.setup/state.json` runtime progress tracking
   - preflight environment validation
@@ -66,7 +66,7 @@ It is built to focus on:
 To install the CLI globally from npm:
 
 ```sh
-npm install -g @koushik.p05/setup
+npm install -g setupforge
 ```
 
 If you want to use it locally in this repo:
@@ -83,58 +83,58 @@ npm run build
 To start the guided setup flow:
 
 ```sh
-setup
+setupforge
 ```
 
 or:
 
 ```sh
-setup init
+setupforge init
 ```
 
 To scaffold only a frontend:
 
 ```sh
-setup frontend
+setupforge frontend
 ```
 
 To scaffold only a backend:
 
 ```sh
-setup backend
+setupforge backend
 ```
 
 To add features to an existing project:
 
 ```sh
-setup add
+setupforge add
 ```
 
 To add app integrations directly:
 
 ```sh
-setup app firebase-auth --web
-setup app firebase-auth --mobile
-setup app firebase-auth --backend
+setupforge app firebase-auth --web
+setupforge app firebase-auth --mobile
+setupforge app firebase-auth --backend
 
-setup app supabase --web
-setup app supabase --mobile
-setup app supabase --backend
+setupforge app supabase --web
+setupforge app supabase --mobile
+setupforge app supabase --backend
 ```
 
 To inspect your environment:
 
 ```sh
-setup doctor
-setup doctor node
-setup doctor android
-setup doctor backend
+setupforge doctor
+setupforge doctor node
+setupforge doctor android
+setupforge doctor backend
 ```
 
 To continue a failed setup:
 
 ```sh
-setup resume
+setupforge resume
 ```
 
 ---
@@ -231,7 +231,7 @@ import { userModel } from '@my-app/models/user-model';
 ## Example Workflow
 
 ```sh
-setup init
+setupforge init
 ```
 
 **Setup Output:**
@@ -268,17 +268,17 @@ The CLI supports non-interactive and partially interactive execution.
 ### Frontend Examples
 
 ```sh
-setup frontend --next --name web-app
-setup frontend --vue --pnpm --name dashboard
-setup frontend --platform native --framework expo --name mobile-app
+setupforge frontend --next --name web-app
+setupforge frontend --vue --pnpm --name dashboard
+setupforge frontend --platform native --framework expo --name mobile-app
 ```
 
 ### Backend Examples
 
 ```sh
-setup backend --framework express --db mongo --ts --name api
-setup backend --nestjs --name api
-setup backend --framework django --name server
+setupforge backend --framework express --db mongo --ts --name api
+setupforge backend --nestjs --name api
+setupforge backend --framework django --name server
 ```
 
 If some values are missing, the CLI asks only for those missing inputs.
@@ -287,7 +287,7 @@ If some values are missing, the CLI asks only for those missing inputs.
 
 ## Add Command
 
-Interactive `setup add` supports:
+Interactive `setupforge add` supports:
 
 - CI/CD pipeline
 - Slack notifications
@@ -301,16 +301,16 @@ Interactive `setup add` supports:
 Direct usage also works:
 
 ```sh
-setup add cicd
-setup add slack
-setup add discord
-setup add linting formatting git-hooks
-setup add firebase-auth --web
-setup add firebase-auth --mobile
-setup add firebase-auth --backend
-setup add supabase --web
-setup add supabase --mobile
-setup add supabase --backend
+setupforge add cicd
+setupforge add slack
+setupforge add discord
+setupforge add linting formatting git-hooks
+setupforge add firebase-auth --web
+setupforge add firebase-auth --mobile
+setupforge add firebase-auth --backend
+setupforge add supabase --web
+setupforge add supabase --mobile
+setupforge add supabase --backend
 ```
 
 The add flow is **idempotent**, which means:
@@ -360,7 +360,7 @@ Fix:
 If a setup step fails, the CLI stores progress and allows recovery with:
 
 ```sh
-setup resume
+setupforge resume
 ```
 
 This avoids re-running already completed steps.
@@ -421,5 +421,5 @@ Feel free to open issues or submit pull requests to improve the CLI.
 
 ## Links
 
-- **NPM Package:** [https://www.npmjs.com/package/@koushik.p05/setup](https://www.npmjs.com/package/@koushik.p05/setup)
+- **NPM Package:** [https://www.npmjs.com/package/setupforge](https://www.npmjs.com/package/setupforge)
 - **GitHub Repository:** [https://github.com/P-koushik/setup-npm](https://github.com/P-koushik/setup-npm)
