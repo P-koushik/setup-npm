@@ -3,6 +3,7 @@ import { addFeature } from '../engine/addBuilder.js';
 import { runPlugin } from '../engine/plugin-runner/index.js';
 import { AddConfig } from '../types/add-config.js';
 import { AppConfig } from '../types/app-config.js';
+import { requireSelection } from '../utils/prompt.js';
 
 export async function add(preset?: Record<string, unknown>) {
   try {
@@ -31,7 +32,8 @@ export async function add(preset?: Record<string, unknown>) {
             { name: 'Git hooks', value: 'git-hooks' },
             { name: 'Firebase Auth', value: 'firebase-auth' },
             { name: 'Supabase', value: 'supabase' }
-          ]
+          ],
+          validate: requireSelection
         }
       ]);
 

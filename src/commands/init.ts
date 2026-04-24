@@ -11,6 +11,7 @@ import {
   inferPackageManager,
   readFlagValue
 } from '../utils/cli-flags.js';
+import { requireSelection } from '../utils/prompt.js';
 
 export async function init(preset?: Record<string, unknown>) {
   try {
@@ -178,7 +179,8 @@ async function resolveInitBaseAnswers(
               choices: [
                 { name: 'Frontend', value: 'frontend' },
                 { name: 'Backend', value: 'backend' }
-              ]
+              ],
+              validate: requireSelection
             }
           ])
         ).stacks;
