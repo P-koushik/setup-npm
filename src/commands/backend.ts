@@ -1,50 +1,16 @@
 import inquirer from 'inquirer';
 import { buildBackend } from '../engine/backendBuilder.js';
-import {
-  ensureJavaPreflight,
-  ensureNodePreflight,
-  ensurePythonPreflight
-} from '../engine/validators/preflight.js';
 import { BackendConfig } from '../types/backend-config.js';
 import {
   hasFlag,
   inferPackageManager,
   readFlagValue
 } from '../utils/cli-flags.js';
-import {
-  beginRun,
-  clearRun,
-  completeStep,
-  failStep,
-  updateProjectConfig
-} from '../utils/state.js';
 
 export async function backend(preset?: Record<string, unknown>) {
   try {
     const config = await resolveBackendConfig(preset);
-    await runBackendPreflight(config);
-
-    await beginRun(process.cwd(), {
-      command: 'backend',
-      projectPath: config.projectName,
-      input: config as unknown as Record<string, unknown>,
-      steps: [{ id: 'build-backend', status: 'pending' }]
-    });
-
-    try {
-      await buildBackend(config);
-      await completeStep(process.cwd(), 'build-backend');
-    } catch {
-      await failStep(process.cwd(), 'build-backend');
-      throw new Error('Backend build failed');
-    }
-
-    await updateProjectConfig(process.cwd(), {
-      projectName: config.projectName,
-      backend: config.backendType,
-      packageManager: config.packageManager
-    });
-    await clearRun(process.cwd());
+    await buildBackend(config);
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'ExitPromptError') {
       console.log('\n❌ Operation cancelled by user\n');
@@ -53,22 +19,6 @@ export async function backend(preset?: Record<string, unknown>) {
 
     console.error('❌ Something went wrong:', error);
     process.exit(1);
-  }
-}
-
-async function runBackendPreflight(config: BackendConfig) {
-  if (config.backendType === 'express' || config.backendType === 'nestjs') {
-    await ensureNodePreflight();
-    return;
-  }
-
-  if (config.backendType === 'fastapi' || config.backendType === 'django') {
-    await ensurePythonPreflight();
-    return;
-  }
-
-  if (config.backendType === 'springboot') {
-    await ensureJavaPreflight();
   }
 }
 
@@ -104,9 +54,7 @@ async function resolveBackendConfig(
         {
           type: 'input',
           name: 'projectName',
-          message: 'Project name:',
-          validate: (input: string) =>
-            input ? true : 'Project name is required'
+          message: 'Project name:'
         }
       ])
     ).projectName;

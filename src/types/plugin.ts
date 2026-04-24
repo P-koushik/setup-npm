@@ -6,14 +6,7 @@ export type PluginContext = {
   config: Record<string, unknown>;
 };
 
-export type PluginValidationResult = {
-  ok: boolean;
-  message?: string;
-};
-
 export type SetupPlugin = {
   name: string;
-  detect?: (context: PluginContext) => boolean;
-  validate?: (context: PluginContext) => PluginValidationResult;
   apply: (context: PluginContext) => Promise<void>;
 };

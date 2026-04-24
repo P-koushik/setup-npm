@@ -1,53 +1,16 @@
 import inquirer from 'inquirer';
 import { buildFrontend } from '../engine/frontendBuilder.js';
-import {
-  ensureAndroidPreflight,
-  ensureNodePreflight
-} from '../engine/validators/preflight.js';
 import { FrontendConfig } from '../types/frontend-config.js';
 import {
   hasFlag,
   inferPackageManager,
   readFlagValue
 } from '../utils/cli-flags.js';
-import {
-  beginRun,
-  clearRun,
-  completeStep,
-  failStep,
-  updateProjectConfig
-} from '../utils/state.js';
 
 export async function frontend(preset?: Record<string, unknown>) {
   try {
     const config = await resolveFrontendConfig(preset);
-    await ensureNodePreflight();
-
-    if (config.framework === 'react-native') {
-      await ensureAndroidPreflight();
-    }
-
-    await beginRun(process.cwd(), {
-      command: 'frontend',
-      projectPath: config.projectName,
-      input: config as unknown as Record<string, unknown>,
-      steps: [{ id: 'build-frontend', status: 'pending' }]
-    });
-
-    try {
-      await buildFrontend(config);
-      await completeStep(process.cwd(), 'build-frontend');
-    } catch {
-      await failStep(process.cwd(), 'build-frontend');
-      throw new Error('Frontend build failed');
-    }
-
-    await updateProjectConfig(process.cwd(), {
-      projectName: config.projectName,
-      frontend: config.framework,
-      packageManager: config.packageManager
-    });
-    await clearRun(process.cwd());
+    await buildFrontend(config);
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'ExitPromptError') {
       console.log('\n❌ Operation cancelled by user\n');
@@ -146,8 +109,7 @@ async function resolveFrontendConfig(
         {
           type: 'input',
           name: 'projectName',
-          message: 'Project name:',
-          validate: (input) => (input ? true : 'Project name is required')
+          message: 'Project name:'
         }
       ])
     ).projectName;

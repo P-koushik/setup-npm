@@ -1,40 +1,14 @@
 import inquirer from 'inquirer';
 import { runPlugin } from '../engine/plugin-runner/index.js';
 import { AppConfig } from '../types/app-config.js';
-import {
-  beginRun,
-  clearRun,
-  completeStep,
-  failStep,
-  updateProjectConfig
-} from '../utils/state.js';
 
 export async function app(preset?: Record<string, unknown>) {
   try {
     const config = await resolveAppConfig(preset);
-
-    await beginRun(process.cwd(), {
-      command: 'app',
-      projectPath: process.cwd(),
-      input: config as unknown as Record<string, unknown>,
-      steps: [{ id: 'apply-app-integration', status: 'pending' }]
+    await runPlugin(config.provider, {
+      target: config.target,
+      frontendPlatform: config.frontendPlatform
     });
-
-    try {
-      await runPlugin(config.provider, {
-        target: config.target,
-        frontendPlatform: config.frontendPlatform
-      });
-      await completeStep(process.cwd(), 'apply-app-integration');
-    } catch {
-      await failStep(process.cwd(), 'apply-app-integration');
-      throw new Error('App integration failed');
-    }
-
-    await updateProjectConfig(process.cwd(), {
-      features: [config.provider]
-    });
-    await clearRun(process.cwd());
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'ExitPromptError') {
       console.log('\n❌ Operation cancelled by user\n');
