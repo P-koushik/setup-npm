@@ -1,10 +1,5 @@
 import { execSync } from 'child_process';
 import ora from 'ora';
-import { validateFrontendOutput } from './validators/post-setup.js';
-import {
-  ensureCommandAvailable,
-  ensurePackageManagerAvailable
-} from './validators/preflight.js';
 import { FrontendConfig } from '../types/frontend-config.js';
 
 export async function buildFrontend(config: FrontendConfig) {
@@ -12,7 +7,6 @@ export async function buildFrontend(config: FrontendConfig) {
 
   try {
     spinner.stop(); // stop spinner before interactive CLI
-    await ensureFrontendTooling(config);
 
     runCommand(
       `Scaffolding ${config.framework} project`,
@@ -21,10 +15,6 @@ export async function buildFrontend(config: FrontendConfig) {
     );
 
     runPostSetup(config);
-    await validateFrontendOutput(
-      config,
-      resolveProjectDir(config.projectName, config.destinationDir)
-    );
 
     spinner.succeed('Frontend setup complete 🚀');
   } catch (error: unknown) {
@@ -65,8 +55,8 @@ function getCommand(config: FrontendConfig): string {
 
     case 'react-native':
       return packageManager === 'bun'
-        ? `bunx react-native init ${projectName}`
-        : `npx react-native init ${projectName}`;
+        ? `bunx @react-native-community/cli init ${projectName}`
+        : `npx @react-native-community/cli init ${projectName}`;
 
     default:
       throw new Error('Unsupported framework');
@@ -138,17 +128,5 @@ function installCommand(
       return 'bun install';
     case 'npm':
       return 'npm install';
-  }
-}
-
-async function ensureFrontendTooling(config: FrontendConfig) {
-  const packageManager = config.packageManager ?? 'npm';
-  await ensurePackageManagerAvailable(packageManager);
-
-  if (
-    packageManager === 'npm' &&
-    ['next', 'angular', 'expo', 'react-native'].includes(config.framework)
-  ) {
-    await ensureCommandAvailable('npx', ['Install Node.js with npm and npx']);
   }
 }

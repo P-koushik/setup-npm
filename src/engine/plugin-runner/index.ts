@@ -15,20 +15,6 @@ export async function runPlugin(
 
   const context = await createPluginContext(config);
 
-  if (plugin.detect && !plugin.detect(context)) {
-    throw new Error(`${pluginName} plugin is not applicable in this project`);
-  }
-
-  if (plugin.validate) {
-    const result = plugin.validate(context);
-
-    if (!result.ok) {
-      throw new Error(
-        result.message ?? `${pluginName} plugin validation failed`
-      );
-    }
-  }
-
   await plugin.apply(context);
 }
 
