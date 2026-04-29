@@ -3,19 +3,11 @@ import ora from 'ora';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { AppConfig } from '../types/app-config.js';
-import {
-  resolveTemplateRoot,
-  validateTemplateDirectory
-} from './validators/template.js';
-import { validateAppIntegrationOutput } from './validators/post-setup.js';
 
-const templatesRoot = resolveTemplateRoot(
-  [
-    fileURLToPath(new URL('../templates', import.meta.url)),
-    fileURLToPath(new URL('../../templates', import.meta.url))
-  ],
-  'Templates directory'
-);
+const templatesRoot = resolveTemplateRoot([
+  fileURLToPath(new URL('../templates', import.meta.url)),
+  fileURLToPath(new URL('../../templates', import.meta.url))
+]);
 
 export async function buildAppIntegration(config: AppConfig) {
   const spinner = ora('Adding app integration...').start();
@@ -42,8 +34,6 @@ export async function buildAppIntegration(config: AppConfig) {
         : [])
     );
 
-    await validateAppTemplate(config, sourceDir);
-
     await fs.ensureDir(destinationDir);
 
     const files = await fs.readdir(sourceDir);
@@ -66,7 +56,6 @@ export async function buildAppIntegration(config: AppConfig) {
       createdFiles.push(path.relative(process.cwd(), destination));
     }
 
-    await validateAppIntegrationOutput(config, destinationDir);
     printSummary(config, createdFiles, skippedFiles, destinationDir);
     spinner.succeed('App integration added successfully 🚀');
   } catch (error: unknown) {
@@ -115,23 +104,8 @@ function printSummary(
   console.log('');
 }
 
-async function validateAppTemplate(config: AppConfig, templatePath: string) {
-  const requiredFiles =
-    config.provider === 'firebase-auth'
-      ? config.target === 'backend'
-        ? ['README.md', 'firebaseAdmin.ts', 'authMiddleware.ts']
-        : config.frontendPlatform === 'mobile'
-          ? ['README.md', 'firebaseClient.ts', 'auth.ts']
-          : ['README.md', 'firebaseClient.ts', 'auth.ts']
-      : config.target === 'backend'
-        ? ['README.md', 'supabaseServer.ts', 'authService.ts']
-        : config.frontendPlatform === 'mobile'
-          ? ['README.md', 'supabaseClient.ts', 'auth.ts']
-          : ['README.md', 'supabaseClient.ts', 'auth.ts'];
-
-  await validateTemplateDirectory(
-    templatePath,
-    requiredFiles,
-    `${config.provider} ${config.target} integration template`
+function resolveTemplateRoot(candidates: string[]): string {
+  return (
+    candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0]
   );
 }

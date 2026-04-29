@@ -9,7 +9,6 @@ It is built to focus on:
 - **reliable project setup**
 - **safe modifications**
 - **clear error handling**
-- **resume support after failures**
 - **plugin-based extensibility**
 
 ---
@@ -49,15 +48,6 @@ It is built to focus on:
   - `Git hooks`
   - `Firebase Auth`
   - `Supabase`
-
-- Includes built-in reliability features:
-  - `setupforge doctor`
-  - `setupforge resume`
-  - `.setuprc` project metadata
-  - `.setup/state.json` runtime progress tracking
-  - preflight environment validation
-  - post-setup validation
-  - template validation before copy
 
 ---
 
@@ -122,23 +112,6 @@ setupforge app supabase --mobile
 setupforge app supabase --backend
 ```
 
-To inspect your environment:
-
-```sh
-setupforge doctor
-setupforge doctor node
-setupforge doctor android
-setupforge doctor backend
-```
-
-To continue a failed setup:
-
-```sh
-setupforge resume
-```
-
----
-
 ## Folder Structure
 
 ### Monorepo Example
@@ -155,10 +128,6 @@ my-app/
 │   ├── types/
 │   ├── models/
 │
-│── .setup/
-│   ├── state.json
-│
-│── .setuprc
 │── package.json
 │── turbo.json
 │── pnpm-workspace.yaml   # if pnpm is selected
@@ -170,9 +139,6 @@ my-app/
 my-app/
 │── frontend/
 │── backend/
-│── .setup/
-│   ├── state.json
-│── .setuprc
 ```
 
 ---
@@ -187,14 +153,12 @@ my-app/
   - package manager
   - frontend, backend, or both
 - Prompts only for missing values when flags are partially provided.
-- Writes `.setuprc` and runtime state tracking.
 
 ### 2️⃣ Frontend Setup
 
 - Creates the selected frontend app.
 - Uses the matching framework generator.
 - Installs dependencies when required by that stack.
-- Validates generated output after setup.
 
 ### 3️⃣ Backend Setup
 
@@ -203,7 +167,6 @@ my-app/
   - local templates for Express, FastAPI, Django, and Spring Boot
   - official CLI for NestJS
 - Installs dependencies or resolves environment setup when required.
-- Validates generated output after setup.
 
 ### 4️⃣ Monorepo Setup
 
@@ -222,7 +185,6 @@ import { userModel } from '@my-app/models/user-model';
 ### 5️⃣ Add Features
 
 - Detects the current project type.
-- Validates plugin/template availability.
 - Applies only safe file changes.
 - Skips or merges existing config instead of duplicating.
 
@@ -321,52 +283,6 @@ The add flow is **idempotent**, which means:
 
 ---
 
-## Doctor System
-
-The doctor command checks the environment before important setup steps.
-
-### Node Checks
-
-- Node.js version `>= 18`
-
-### Android Checks
-
-- `ANDROID_HOME` / `ANDROID_SDK_ROOT`
-- SDK directory exists
-- `adb` available
-- `emulator` available
-
-### Backend Checks
-
-- Python availability
-- Java availability
-
-Example:
-
-```sh
-✔ Node version OK
-✖ Android SDK not found
-
-Fix:
-- Install Android Studio
-- Set ANDROID_HOME
-- Add platform-tools to PATH
-```
-
----
-
-## Resume System
-
-If a setup step fails, the CLI stores progress and allows recovery with:
-
-```sh
-setupforge resume
-```
-
-This avoids re-running already completed steps.
-
----
-
 ## Plugin System
 
 The CLI includes a plugin-based architecture for feature extensions.
@@ -377,12 +293,7 @@ Current built-in plugins:
 - `firebase-auth`
 - `supabase`
 
-Each plugin follows this flow:
-
-1. detect project context
-2. validate applicability
-3. apply safe changes
-4. validate output
+Each plugin receives project context and applies its changes directly.
 
 ---
 

@@ -1,16 +1,8 @@
-import inquirer from 'inquirer';
 import { addFeature } from '../engine/addBuilder.js';
 import { runPlugin } from '../engine/plugin-runner/index.js';
 import { AddConfig } from '../types/add-config.js';
 import { AppConfig } from '../types/app-config.js';
-import {
-  beginRun,
-  clearRun,
-  completeStep,
-  failStep,
-  loadState,
-  updateProjectConfig
-} from '../utils/state.js';
+import { promptWithNavigation, requireSelection } from '../utils/prompt.js';
 
 export async function add(preset?: Record<string, unknown>) {
   try {
@@ -25,7 +17,7 @@ export async function add(preset?: Record<string, unknown>) {
     const resolved = await resolvePendingTargets(parsedArgs);
 
     if (!resolved.cicdFeatures && resolved.appIntegrations.length === 0) {
-      const answers = await inquirer.prompt([
+      const answers = await promptWithNavigation<{ items: string[] }>([
         {
           type: 'checkbox',
           name: 'items',
@@ -40,8 +32,7 @@ export async function add(preset?: Record<string, unknown>) {
             { name: 'Firebase Auth', value: 'firebase-auth' },
             { name: 'Supabase', value: 'supabase' }
           ],
-          validate: (input: string[]) =>
-            input.length > 0 ? true : 'Select at least one item to add'
+          validate: requireSelection
         }
       ]);
 
@@ -79,89 +70,23 @@ async function runSelections(
     ['cicd', 'slack', 'discord'].includes(feature)
   ) as Array<'cicd' | 'slack' | 'discord'>;
   const integrations = dedupeIntegrations(appIntegrations);
-  const existingState = await loadState(process.cwd());
-
-  if (!existingState) {
-    await beginRun(process.cwd(), {
-      command: 'add',
-      projectPath: process.cwd(),
-      input: {
-        cicdFeatures,
-        appIntegrations: integrations
-      },
-      steps: [
-        ...features.map((feature) => ({
-          id: `feature:${feature}`,
-          status: 'pending' as const
-        })),
-        ...integrations.map((integration) => ({
-          id: integrationStepId(integration),
-          status: 'pending' as const
-        }))
-      ]
-    });
-  }
 
   if (toolingFeatures.length > 0) {
-    try {
-      await addFeature({ features: toolingFeatures });
-      for (const feature of toolingFeatures) {
-        await completeStep(process.cwd(), `feature:${feature}`);
-      }
-    } catch {
-      for (const feature of toolingFeatures) {
-        await failStep(process.cwd(), `feature:${feature}`);
-      }
-      throw new Error('Feature add failed');
-    }
+    await addFeature({ features: toolingFeatures });
   }
 
   if (cicdPluginFeatures.length > 0) {
-    try {
-      await runPlugin('cicd', {
-        features: cicdPluginFeatures
-      });
-      for (const feature of cicdPluginFeatures) {
-        await completeStep(process.cwd(), `feature:${feature}`);
-      }
-    } catch {
-      for (const feature of cicdPluginFeatures) {
-        await failStep(process.cwd(), `feature:${feature}`);
-      }
-      throw new Error('Feature add failed');
-    }
+    await runPlugin('cicd', {
+      features: cicdPluginFeatures
+    });
   }
 
   for (const integration of integrations) {
-    const stepId = integrationStepId(integration);
-
-    if (
-      existingState?.steps.some(
-        (step) => step.id === stepId && step.status === 'completed'
-      )
-    ) {
-      continue;
-    }
-
-    try {
-      await runPlugin(integration.provider, {
-        target: integration.target,
-        frontendPlatform: integration.frontendPlatform
-      });
-      await completeStep(process.cwd(), stepId);
-    } catch {
-      await failStep(process.cwd(), stepId);
-      throw new Error('Integration add failed');
-    }
+    await runPlugin(integration.provider, {
+      target: integration.target,
+      frontendPlatform: integration.frontendPlatform
+    });
   }
-
-  await updateProjectConfig(process.cwd(), {
-    features: [
-      ...features,
-      ...integrations.map((integration) => integration.provider)
-    ]
-  });
-  await clearRun(process.cwd());
 }
 
 async function resolvePendingTargets(selection: ParsedSelection): Promise<{
@@ -171,7 +96,10 @@ async function resolvePendingTargets(selection: ParsedSelection): Promise<{
   const appIntegrations = [...selection.appIntegrations];
 
   for (const provider of selection.pendingProviders) {
-    const answer = await inquirer.prompt([
+    const answer = await promptWithNavigation<{
+      target: AppConfig['target'];
+      frontendPlatform: AppConfig['frontendPlatform'];
+    }>([
       {
         type: 'list',
         name: 'target',
@@ -180,6 +108,18 @@ async function resolvePendingTargets(selection: ParsedSelection): Promise<{
           { name: 'Frontend', value: 'frontend' },
           { name: 'Backend', value: 'backend' }
         ]
+      },
+      {
+        type: 'list',
+        name: 'frontendPlatform',
+        message: `Choose frontend platform for ${providerLabel(provider)}:`,
+        choices: [
+          { name: 'Web', value: 'web' },
+          { name: 'Mobile', value: 'mobile' }
+        ],
+        when: (currentAnswers) =>
+          (provider === 'firebase-auth' || provider === 'supabase') &&
+          currentAnswers.target === 'frontend'
       }
     ]);
 
@@ -189,9 +129,7 @@ async function resolvePendingTargets(selection: ParsedSelection): Promise<{
       frontendPlatform:
         (provider === 'firebase-auth' || provider === 'supabase') &&
         answer.target === 'frontend'
-          ? ((await askFrontendPlatform(
-              provider
-            )) as AppConfig['frontendPlatform'])
+          ? answer.frontendPlatform
           : undefined
     });
   }
@@ -332,24 +270,6 @@ function dedupeIntegrations(appIntegrations: AppConfig[]): AppConfig[] {
 
 function providerLabel(provider: AppConfig['provider']): string {
   return provider === 'firebase-auth' ? 'Firebase Auth' : 'Supabase';
-}
-
-async function askFrontendPlatform(
-  provider: AppConfig['provider']
-): Promise<AppConfig['frontendPlatform']> {
-  return (
-    await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'frontendPlatform',
-        message: `Choose frontend platform for ${providerLabel(provider)}:`,
-        choices: [
-          { name: 'Web', value: 'web' },
-          { name: 'Mobile', value: 'mobile' }
-        ]
-      }
-    ])
-  ).frontendPlatform as AppConfig['frontendPlatform'];
 }
 
 function inferFrontendPlatform(

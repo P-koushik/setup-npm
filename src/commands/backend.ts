@@ -1,50 +1,21 @@
-import inquirer from 'inquirer';
 import { buildBackend } from '../engine/backendBuilder.js';
-import {
-  ensureJavaPreflight,
-  ensureNodePreflight,
-  ensurePythonPreflight
-} from '../engine/validators/preflight.js';
+import { runDoctor } from '../engine/doctor/index.js';
 import { BackendConfig } from '../types/backend-config.js';
 import {
   hasFlag,
   inferPackageManager,
   readFlagValue
 } from '../utils/cli-flags.js';
-import {
-  beginRun,
-  clearRun,
-  completeStep,
-  failStep,
-  updateProjectConfig
-} from '../utils/state.js';
+import { promptWithNavigation } from '../utils/prompt.js';
 
 export async function backend(preset?: Record<string, unknown>) {
   try {
     const config = await resolveBackendConfig(preset);
-    await runBackendPreflight(config);
-
-    await beginRun(process.cwd(), {
-      command: 'backend',
-      projectPath: config.projectName,
-      input: config as unknown as Record<string, unknown>,
-      steps: [{ id: 'build-backend', status: 'pending' }]
+    runDoctor({
+      packageManager: config.packageManager,
+      backendConfig: config
     });
-
-    try {
-      await buildBackend(config);
-      await completeStep(process.cwd(), 'build-backend');
-    } catch {
-      await failStep(process.cwd(), 'build-backend');
-      throw new Error('Backend build failed');
-    }
-
-    await updateProjectConfig(process.cwd(), {
-      projectName: config.projectName,
-      backend: config.backendType,
-      packageManager: config.packageManager
-    });
-    await clearRun(process.cwd());
+    await buildBackend(config);
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'ExitPromptError') {
       console.log('\n❌ Operation cancelled by user\n');
@@ -53,22 +24,6 @@ export async function backend(preset?: Record<string, unknown>) {
 
     console.error('❌ Something went wrong:', error);
     process.exit(1);
-  }
-}
-
-async function runBackendPreflight(config: BackendConfig) {
-  if (config.backendType === 'express' || config.backendType === 'nestjs') {
-    await ensureNodePreflight();
-    return;
-  }
-
-  if (config.backendType === 'fastapi' || config.backendType === 'django') {
-    await ensurePythonPreflight();
-    return;
-  }
-
-  if (config.backendType === 'springboot') {
-    await ensureJavaPreflight();
   }
 }
 
@@ -86,95 +41,93 @@ async function resolveBackendConfig(
       : undefined) ??
     normalizeBackendType(readFlagValue(args, '--framework', '--backend')) ??
     inferBackendTypeFromFlags(args);
-  let language =
+  const language =
     (typeof preset?.language === 'string'
       ? normalizeLanguage(preset.language)
       : undefined) ??
     normalizeLanguage(readFlagValue(args, '--language')) ??
     inferLanguageFromFlags(args);
-  let useMongo =
+  const useMongo =
     typeof preset?.useMongo === 'boolean'
       ? preset.useMongo
       : inferMongoPreference(args);
 
-  const resolvedProjectName =
-    projectName ??
-    (
-      await inquirer.prompt([
-        {
-          type: 'input',
-          name: 'projectName',
-          message: 'Project name:',
-          validate: (input: string) =>
-            input ? true : 'Project name is required'
-        }
-      ])
-    ).projectName;
-
-  if (!backendType) {
-    backendType = (
-      await inquirer.prompt([
-        {
-          type: 'list',
-          name: 'backendType',
-          message: 'Choose backend type:',
-          choices: [
-            { name: 'Express', value: 'express' },
-            { name: 'NestJS', value: 'nestjs' },
-            { name: 'FastAPI', value: 'fastapi' },
-            { name: 'Django', value: 'django' },
-            { name: 'Spring Boot', value: 'springboot' }
-          ],
-          default: 'express'
-        }
-      ])
-    ).backendType;
-  }
-
-  let backendAnswers = {};
-
-  if (backendType === 'express') {
-    if (!language) {
-      language = (
-        await inquirer.prompt([
-          {
-            type: 'list',
-            name: 'language',
-            message: 'Choose language:',
-            choices: [
-              { name: 'TypeScript (recommended)', value: 'TypeScript' },
-              { name: 'JavaScript', value: 'JavaScript' }
-            ],
-            default: 'TypeScript'
-          }
-        ])
-      ).language;
+  const answers = await promptWithNavigation<BackendConfig>(
+    [
+      {
+        type: 'input',
+        name: 'projectName',
+        message: 'Project name:',
+        when: () => !projectName
+      },
+      {
+        type: 'list',
+        name: 'backendType',
+        message: 'Choose backend type:',
+        choices: [
+          { name: 'Express', value: 'express' },
+          { name: 'NestJS', value: 'nestjs' },
+          { name: 'FastAPI', value: 'fastapi' },
+          { name: 'Django', value: 'django' },
+          { name: 'Spring Boot', value: 'springboot' }
+        ],
+        default: 'express',
+        when: () => !backendType
+      },
+      {
+        type: 'list',
+        name: 'language',
+        message: 'Choose language:',
+        choices: [
+          { name: 'TypeScript (recommended)', value: 'TypeScript' },
+          { name: 'JavaScript', value: 'JavaScript' }
+        ],
+        default: 'TypeScript',
+        when: (currentAnswers) =>
+          currentAnswers.backendType === 'express' && !language
+      },
+      {
+        type: 'confirm',
+        name: 'useMongo',
+        message: 'Use MongoDB?',
+        default: true,
+        when: (currentAnswers) =>
+          currentAnswers.backendType === 'express' &&
+          typeof useMongo !== 'boolean'
+      }
+    ],
+    {
+      projectName,
+      backendType,
+      language,
+      useMongo,
+      destinationDir:
+        typeof preset?.destinationDir === 'string'
+          ? preset.destinationDir
+          : readFlagValue(
+              args,
+              '--destination',
+              '--destination-dir',
+              '--out-dir'
+            ),
+      packageManager:
+        typeof preset?.packageManager === 'string'
+          ? (preset.packageManager as BackendConfig['packageManager'])
+          : inferPackageManager(args)
     }
+  );
 
-    if (typeof useMongo !== 'boolean') {
-      useMongo = (
-        await inquirer.prompt([
-          {
-            type: 'confirm',
-            name: 'useMongo',
-            message: 'Use MongoDB?',
-            default: true
-          }
-        ])
-      ).useMongo;
-    }
-
-    backendAnswers = { language, useMongo };
-  }
+  backendType = answers.backendType;
 
   if (!backendType) {
     throw new Error('Backend type is required');
   }
 
   return {
-    projectName: resolvedProjectName,
+    projectName: answers.projectName,
     backendType,
-    ...backendAnswers,
+    language: answers.language,
+    useMongo: answers.useMongo,
     destinationDir:
       typeof preset?.destinationDir === 'string'
         ? preset.destinationDir
