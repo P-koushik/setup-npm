@@ -5,7 +5,7 @@ import ListPrompt from 'inquirer/lib/prompts/list.js';
 
 const promptBack = Symbol('promptBack');
 
-type NavigableQuestion<T extends Answers> = DistinctQuestion<T> & {
+export type NavigableQuestion<T extends Answers> = DistinctQuestion<T> & {
   name: keyof T & string;
 };
 
@@ -25,6 +25,20 @@ type NavigationPrompt = {
   done?: (value: unknown) => void;
 };
 
+type PromptWithNavigationOptions<T extends Answers> = {
+  beforeQuestion?: (event: {
+    question: NavigableQuestion<T>;
+    answers: T;
+    index: number;
+  }) => void | Promise<void>;
+  onAnswer?: (event: {
+    question: NavigableQuestion<T>;
+    answers: T;
+    value: unknown;
+    index: number;
+  }) => void | Promise<void>;
+};
+
 export function requireSelection<T>(value: T[]): true | string {
   return value.length > 0
     ? true
@@ -33,7 +47,8 @@ export function requireSelection<T>(value: T[]): true | string {
 
 export async function promptWithNavigation<T extends Answers>(
   questions: Array<NavigableQuestion<T>>,
-  initialAnswers: Partial<T> = {}
+  initialAnswers: Partial<T> = {},
+  options: PromptWithNavigationOptions<T> = {}
 ): Promise<T> {
   const prompt = createNavigablePrompt();
   const answers = { ...initialAnswers } as T;
@@ -52,6 +67,12 @@ export async function promptWithNavigation<T extends Answers>(
       index = Math.max(index, 0);
       continue;
     }
+
+    await options.beforeQuestion?.({
+      question,
+      answers,
+      index
+    });
 
     const answer = await prompt<T>(
       [
@@ -82,6 +103,13 @@ export async function promptWithNavigation<T extends Answers>(
     if (previousValue !== undefined && previousValue !== value) {
       deleteFollowingAnswers(answers, questions, index + 1);
     }
+
+    await options.onAnswer?.({
+      question,
+      answers,
+      value,
+      index
+    });
 
     index += 1;
     direction = 'forward';
