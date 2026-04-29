@@ -5,11 +5,18 @@ import { app } from '../commands/app.js';
 import { backend } from '../commands/backend.js';
 import { doctor } from '../commands/doctor.js';
 import { frontend } from '../commands/frontend.js';
+import { help } from '../commands/help.js';
 import { init } from '../commands/init.js';
 
 const command = process.argv[2];
 
 switch (command) {
+  case '--help':
+  case '-h':
+  case 'help':
+    help();
+    break;
+
   case undefined:
   case 'init':
     init();
@@ -36,16 +43,6 @@ switch (command) {
     break;
 
   default:
-    console.log(`
-❌ Unknown command
-
-Usage:
-  setupforge
-  setupforge add
-  setupforge app <firebase-auth|supabase> --frontend|--backend
-  setupforge backend
-  setupforge doctor
-  setupforge frontend
-  setupforge init
-`);
+    console.log(`❌ Unknown command\n`);
+    help();
 }
