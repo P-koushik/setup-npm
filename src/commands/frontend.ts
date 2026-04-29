@@ -1,4 +1,4 @@
-import inquirer from 'inquirer';
+import { runDoctor } from '../engine/doctor/index.js';
 import { buildFrontend } from '../engine/frontendBuilder.js';
 import { FrontendConfig } from '../types/frontend-config.js';
 import {
@@ -6,10 +6,15 @@ import {
   inferPackageManager,
   readFlagValue
 } from '../utils/cli-flags.js';
+import { promptWithNavigation } from '../utils/prompt.js';
 
 export async function frontend(preset?: Record<string, unknown>) {
   try {
     const config = await resolveFrontendConfig(preset);
+    runDoctor({
+      packageManager: config.packageManager,
+      frontendConfig: config
+    });
     await buildFrontend(config);
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'ExitPromptError') {
@@ -62,57 +67,58 @@ async function resolveFrontendConfig(
     );
   }
 
-  if (!platform) {
-    platform = (
-      await inquirer.prompt([
-        {
-          type: 'list',
-          name: 'platform',
-          message: 'Choose platform:',
-          choices: [
-            { name: 'Web 🌐', value: 'web' },
-            { name: 'Native 📱', value: 'native' }
-          ]
-        }
-      ])
-    ).platform;
-  }
+  const answers = await promptWithNavigation<FrontendConfig>(
+    [
+      {
+        type: 'list',
+        name: 'platform',
+        message: 'Choose platform:',
+        choices: [
+          { name: 'Web 🌐', value: 'web' },
+          { name: 'Native 📱', value: 'native' }
+        ],
+        when: () => !platform
+      },
+      {
+        type: 'list',
+        name: 'framework',
+        message: 'Choose framework:',
+        choices: (currentAnswers) =>
+          currentAnswers.platform === 'web'
+            ? [
+                { name: 'Next.js (recommended)', value: 'next' },
+                { name: 'Angular', value: 'angular' },
+                { name: 'Vue', value: 'vue' },
+                { name: 'React (Vite)', value: 'vite' }
+              ]
+            : [
+                { name: 'Expo (recommended)', value: 'expo' },
+                { name: 'React Native CLI', value: 'react-native' }
+              ],
+        when: () => !framework
+      },
+      {
+        type: 'input',
+        name: 'projectName',
+        message: 'Project name:',
+        when: () => !projectName
+      }
+    ],
+    {
+      platform,
+      framework,
+      projectName,
+      destinationDir,
+      packageManager:
+        typeof packageManager === 'string'
+          ? (packageManager as FrontendConfig['packageManager'])
+          : undefined
+    }
+  );
 
-  if (!framework) {
-    framework = (
-      await inquirer.prompt([
-        {
-          type: 'list',
-          name: 'framework',
-          message: 'Choose framework:',
-          choices:
-            platform === 'web'
-              ? [
-                  { name: 'Next.js (recommended)', value: 'next' },
-                  { name: 'Angular', value: 'angular' },
-                  { name: 'Vue', value: 'vue' },
-                  { name: 'React (Vite)', value: 'vite' }
-                ]
-              : [
-                  { name: 'Expo (recommended)', value: 'expo' },
-                  { name: 'React Native CLI', value: 'react-native' }
-                ]
-        }
-      ])
-    ).framework;
-  }
-
-  const resolvedProjectName =
-    projectName ??
-    (
-      await inquirer.prompt([
-        {
-          type: 'input',
-          name: 'projectName',
-          message: 'Project name:'
-        }
-      ])
-    ).projectName;
+  platform = answers.platform;
+  framework = answers.framework;
+  const resolvedProjectName = answers.projectName;
 
   if (!platform || !framework) {
     throw new Error('Frontend platform and framework are required');
