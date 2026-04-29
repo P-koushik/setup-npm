@@ -1,6 +1,6 @@
-import inquirer from 'inquirer';
 import { runPlugin } from '../engine/plugin-runner/index.js';
 import { AppConfig } from '../types/app-config.js';
+import { promptWithNavigation } from '../utils/prompt.js';
 
 export async function app(preset?: Record<string, unknown>) {
   try {
@@ -60,57 +60,53 @@ async function resolveAppConfig(
     frontendPlatform = 'mobile';
   }
 
-  if (!provider) {
-    provider = (
-      await inquirer.prompt([
-        {
-          type: 'list',
-          name: 'provider',
-          message: 'Choose app integration:',
-          choices: [
-            { name: 'Firebase Auth', value: 'firebase-auth' },
-            { name: 'Supabase', value: 'supabase' }
-          ]
-        }
-      ])
-    ).provider;
-  }
+  const answers = await promptWithNavigation<AppConfig>(
+    [
+      {
+        type: 'list',
+        name: 'provider',
+        message: 'Choose app integration:',
+        choices: [
+          { name: 'Firebase Auth', value: 'firebase-auth' },
+          { name: 'Supabase', value: 'supabase' }
+        ],
+        when: () => !provider
+      },
+      {
+        type: 'list',
+        name: 'target',
+        message: 'Choose integration target:',
+        choices: [
+          { name: 'Frontend', value: 'frontend' },
+          { name: 'Backend', value: 'backend' }
+        ],
+        when: () => !target
+      },
+      {
+        type: 'list',
+        name: 'frontendPlatform',
+        message: 'Choose frontend platform:',
+        choices: [
+          { name: 'Web', value: 'web' },
+          { name: 'Mobile', value: 'mobile' }
+        ],
+        when: (currentAnswers) =>
+          (currentAnswers.provider === 'firebase-auth' ||
+            currentAnswers.provider === 'supabase') &&
+          currentAnswers.target === 'frontend' &&
+          !frontendPlatform
+      }
+    ],
+    {
+      provider,
+      target,
+      frontendPlatform
+    }
+  );
 
-  if (!target) {
-    target = (
-      await inquirer.prompt([
-        {
-          type: 'list',
-          name: 'target',
-          message: 'Choose integration target:',
-          choices: [
-            { name: 'Frontend', value: 'frontend' },
-            { name: 'Backend', value: 'backend' }
-          ]
-        }
-      ])
-    ).target;
-  }
-
-  if (
-    (provider === 'firebase-auth' || provider === 'supabase') &&
-    target === 'frontend' &&
-    !frontendPlatform
-  ) {
-    frontendPlatform = (
-      await inquirer.prompt([
-        {
-          type: 'list',
-          name: 'frontendPlatform',
-          message: 'Choose frontend platform:',
-          choices: [
-            { name: 'Web', value: 'web' },
-            { name: 'Mobile', value: 'mobile' }
-          ]
-        }
-      ])
-    ).frontendPlatform;
-  }
+  provider = answers.provider;
+  target = answers.target;
+  frontendPlatform = answers.frontendPlatform;
 
   if (!provider || !target) {
     throw new Error('Provider and target are required');

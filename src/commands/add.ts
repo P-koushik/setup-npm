@@ -1,9 +1,8 @@
-import inquirer from 'inquirer';
 import { addFeature } from '../engine/addBuilder.js';
 import { runPlugin } from '../engine/plugin-runner/index.js';
 import { AddConfig } from '../types/add-config.js';
 import { AppConfig } from '../types/app-config.js';
-import { requireSelection } from '../utils/prompt.js';
+import { promptWithNavigation, requireSelection } from '../utils/prompt.js';
 
 export async function add(preset?: Record<string, unknown>) {
   try {
@@ -18,7 +17,7 @@ export async function add(preset?: Record<string, unknown>) {
     const resolved = await resolvePendingTargets(parsedArgs);
 
     if (!resolved.cicdFeatures && resolved.appIntegrations.length === 0) {
-      const answers = await inquirer.prompt([
+      const answers = await promptWithNavigation<{ items: string[] }>([
         {
           type: 'checkbox',
           name: 'items',
@@ -97,7 +96,10 @@ async function resolvePendingTargets(selection: ParsedSelection): Promise<{
   const appIntegrations = [...selection.appIntegrations];
 
   for (const provider of selection.pendingProviders) {
-    const answer = await inquirer.prompt([
+    const answer = await promptWithNavigation<{
+      target: AppConfig['target'];
+      frontendPlatform: AppConfig['frontendPlatform'];
+    }>([
       {
         type: 'list',
         name: 'target',
@@ -106,6 +108,18 @@ async function resolvePendingTargets(selection: ParsedSelection): Promise<{
           { name: 'Frontend', value: 'frontend' },
           { name: 'Backend', value: 'backend' }
         ]
+      },
+      {
+        type: 'list',
+        name: 'frontendPlatform',
+        message: `Choose frontend platform for ${providerLabel(provider)}:`,
+        choices: [
+          { name: 'Web', value: 'web' },
+          { name: 'Mobile', value: 'mobile' }
+        ],
+        when: (currentAnswers) =>
+          (provider === 'firebase-auth' || provider === 'supabase') &&
+          currentAnswers.target === 'frontend'
       }
     ]);
 
@@ -115,9 +129,7 @@ async function resolvePendingTargets(selection: ParsedSelection): Promise<{
       frontendPlatform:
         (provider === 'firebase-auth' || provider === 'supabase') &&
         answer.target === 'frontend'
-          ? ((await askFrontendPlatform(
-              provider
-            )) as AppConfig['frontendPlatform'])
+          ? answer.frontendPlatform
           : undefined
     });
   }
@@ -258,24 +270,6 @@ function dedupeIntegrations(appIntegrations: AppConfig[]): AppConfig[] {
 
 function providerLabel(provider: AppConfig['provider']): string {
   return provider === 'firebase-auth' ? 'Firebase Auth' : 'Supabase';
-}
-
-async function askFrontendPlatform(
-  provider: AppConfig['provider']
-): Promise<AppConfig['frontendPlatform']> {
-  return (
-    await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'frontendPlatform',
-        message: `Choose frontend platform for ${providerLabel(provider)}:`,
-        choices: [
-          { name: 'Web', value: 'web' },
-          { name: 'Mobile', value: 'mobile' }
-        ]
-      }
-    ])
-  ).frontendPlatform as AppConfig['frontendPlatform'];
 }
 
 function inferFrontendPlatform(
