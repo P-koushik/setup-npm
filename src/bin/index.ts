@@ -7,7 +7,10 @@ import { doctor } from '../commands/doctor.js';
 import { frontend } from '../commands/frontend.js';
 import { help } from '../commands/help.js';
 import { init } from '../commands/init.js';
-import { checkForUpdates } from '../utils/update-check.js';
+import {
+  checkForUpdates,
+  getInstalledPackageInfo
+} from '../utils/update-check.js';
 
 const command = process.argv[2];
 
@@ -21,6 +24,13 @@ async function main() {
     case '-h':
     case 'help':
       help();
+      break;
+
+    case '-v':
+    case '--version':
+    case '-version':
+    case 'version':
+      console.log(getInstalledPackageInfo().version);
       break;
 
     case undefined:

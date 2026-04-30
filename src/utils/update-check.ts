@@ -9,12 +9,16 @@ const fallbackVersion = '1.0.3';
 
 type UpdateChoice = 'update' | 'continue';
 
+export function getInstalledPackageInfo() {
+  return readPackageInfo();
+}
+
 export async function checkForUpdates() {
   if (process.env.SETUPFORGE_SKIP_UPDATE_CHECK === '1') {
     return;
   }
 
-  const packageInfo = readPackageInfo();
+  const packageInfo = getInstalledPackageInfo();
   const latestVersion = getLatestVersion(packageInfo.name);
 
   if (!latestVersion || !isNewerVersion(latestVersion, packageInfo.version)) {

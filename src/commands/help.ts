@@ -30,6 +30,9 @@ Commands:
   setupforge --help
     Show this help message.
 
+  setupforge -v, --version
+    Show the installed SetupForge version.
+
 Common options:
   --name, --project-name <name>       Set the project name.
   --package-manager, --pm <manager>   Choose npm, pnpm, yarn, or bun.
