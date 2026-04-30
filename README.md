@@ -76,6 +76,10 @@ To start the guided setup flow:
 setupforge
 ```
 
+When you run bare `setupforge`, the CLI first checks npm for a newer
+SetupForge version. If one is available, you can choose to update immediately
+with the global install command or continue without updating.
+
 or:
 
 ```sh
@@ -112,6 +116,36 @@ setupforge app supabase --mobile
 setupforge app supabase --backend
 ```
 
+To show command help:
+
+```sh
+setupforge --help
+setupforge help
+```
+
+To show the installed version:
+
+```sh
+setupforge -v
+setupforge --version
+setupforge -version
+setupforge version
+```
+
+### Command Reference
+
+| Command                                    | Description                                                            |
+| ------------------------------------------ | ---------------------------------------------------------------------- |
+| `setupforge`                               | Check for updates, then start the guided setup flow.                   |
+| `setupforge init`                          | Start the guided setup flow without the startup update prompt.         |
+| `setupforge frontend`                      | Scaffold a frontend app.                                               |
+| `setupforge backend`                       | Scaffold a backend app.                                                |
+| `setupforge doctor`                        | Check local tool requirements for selected or detected project stacks. |
+| `setupforge add`                           | Add CI/CD, linting, formatting, hooks, notifications, or integrations. |
+| `setupforge app <firebase-auth\|supabase>` | Add a specific app integration to a frontend or backend.               |
+| `setupforge --help`                        | Show command help.                                                     |
+| `setupforge -v`                            | Show the installed SetupForge version.                                 |
+
 ## Folder Structure
 
 ### Monorepo Example
@@ -144,6 +178,28 @@ my-app/
 ---
 
 ## Steps Executed by the CLI
+
+### 0️⃣ Startup Update Check
+
+When running bare `setupforge`, the CLI checks the latest npm version of
+`setupforge`.
+
+If a newer version exists, it asks whether to:
+
+- **Update now**: runs `npm install -g setupforge@latest`, then exits so you can
+  rerun the updated CLI.
+- **Continue without updating**: skips the update and starts the normal guided
+  setup flow.
+
+The update check is skipped for subcommands such as `setupforge init`,
+`setupforge --help`, `setupforge -v`, `setupforge doctor`, and direct scaffold
+commands.
+
+For CI or development, you can disable the update check:
+
+```sh
+SETUPFORGE_SKIP_UPDATE_CHECK=1 setupforge
+```
 
 ### 1️⃣ Guided Setup
 
