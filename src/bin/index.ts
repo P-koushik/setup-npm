@@ -7,42 +7,59 @@ import { doctor } from '../commands/doctor.js';
 import { frontend } from '../commands/frontend.js';
 import { help } from '../commands/help.js';
 import { init } from '../commands/init.js';
+import { checkForUpdates } from '../utils/update-check.js';
 
 const command = process.argv[2];
 
-switch (command) {
-  case '--help':
-  case '-h':
-  case 'help':
-    help();
-    break;
+async function main() {
+  if (command !== '--help' && command !== '-h' && command !== 'help') {
+    await checkForUpdates();
+  }
 
-  case undefined:
-  case 'init':
-    init();
-    break;
+  switch (command) {
+    case '--help':
+    case '-h':
+    case 'help':
+      help();
+      break;
 
-  case 'add':
-    add();
-    break;
+    case undefined:
+    case 'init':
+      await init();
+      break;
 
-  case 'app':
-    app();
-    break;
+    case 'add':
+      await add();
+      break;
 
-  case 'backend':
-    backend();
-    break;
+    case 'app':
+      await app();
+      break;
 
-  case 'doctor':
-    doctor();
-    break;
+    case 'backend':
+      await backend();
+      break;
 
-  case 'frontend':
-    frontend();
-    break;
+    case 'doctor':
+      await doctor();
+      break;
 
-  default:
-    console.log(`❌ Unknown command\n`);
-    help();
+    case 'frontend':
+      await frontend();
+      break;
+
+    default:
+      console.log(`❌ Unknown command\n`);
+      help();
+  }
 }
+
+main().catch((error: unknown) => {
+  if (error instanceof Error) {
+    console.error(`❌ ${error.message}`);
+  } else {
+    console.error('❌ Something went wrong:', error);
+  }
+
+  process.exit(1);
+});
