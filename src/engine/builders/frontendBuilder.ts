@@ -1,6 +1,8 @@
 import { execSync } from 'child_process';
+import fs from 'fs-extra';
+import path from 'path';
 import ora from 'ora';
-import { FrontendConfig } from '../types/frontend-config.js';
+import { FrontendConfig } from '../../types/frontend-config.js';
 
 export async function buildFrontend(config: FrontendConfig) {
   const spinner = ora('Creating frontend project...').start();
@@ -14,7 +16,7 @@ export async function buildFrontend(config: FrontendConfig) {
       config.destinationDir
     );
 
-    runPostSetup(config);
+    await runPostSetup(config);
 
     spinner.succeed('Frontend setup complete 🚀');
   } catch (error: unknown) {
@@ -63,7 +65,7 @@ function getCommand(config: FrontendConfig): string {
   }
 }
 
-function runPostSetup(config: FrontendConfig) {
+async function runPostSetup(config: FrontendConfig) {
   const {
     framework,
     projectName,
@@ -71,15 +73,23 @@ function runPostSetup(config: FrontendConfig) {
     packageManager = 'npm'
   } = config;
 
-  if (framework !== 'vue') {
-    return;
+  const projectDir = resolveProjectDir(projectName, destinationDir);
+
+  if (framework === 'react-native' && shouldSkipGit(config)) {
+    await fs.remove(path.join(projectDir, '.git'));
   }
 
-  runCommand(
-    'Installing dependencies',
-    installCommand(packageManager),
-    resolveProjectDir(projectName, destinationDir)
-  );
+  if (framework === 'vue') {
+    runCommand(
+      'Installing dependencies',
+      installCommand(packageManager),
+      projectDir
+    );
+  }
+}
+
+function shouldSkipGit(config: FrontendConfig) {
+  return Boolean(config.destinationDir);
 }
 
 function runCommand(step: string, command: string, cwd?: string) {

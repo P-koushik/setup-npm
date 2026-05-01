@@ -3,11 +3,12 @@ import fs from 'fs-extra';
 import ora from 'ora';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { BackendConfig } from '../types/backend-config.js';
+import { BackendConfig } from '../../types/backend-config.js';
 
 const templatesRoot = resolveTemplateRoot([
   fileURLToPath(new URL('../templates/backend', import.meta.url)),
-  fileURLToPath(new URL('../../templates/backend', import.meta.url))
+  fileURLToPath(new URL('../../templates/backend', import.meta.url)),
+  fileURLToPath(new URL('../../../templates/backend', import.meta.url))
 ]);
 
 export async function buildBackend(config: BackendConfig) {

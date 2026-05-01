@@ -1,4 +1,4 @@
-import { addFeature } from '../engine/addBuilder.js';
+import { addFeature } from '../engine/builders/addBuilder.js';
 import { runPlugin } from '../engine/plugin-runner/index.js';
 import { AddConfig } from '../types/add-config.js';
 import { AppConfig } from '../types/app-config.js';

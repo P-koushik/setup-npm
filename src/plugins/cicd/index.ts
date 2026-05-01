@@ -1,4 +1,4 @@
-import { addFeature } from '../../engine/addBuilder.js';
+import { addFeature } from '../../engine/builders/addBuilder.js';
 import { PluginContext, SetupPlugin } from '../../types/plugin.js';
 
 const cicdPlugin: SetupPlugin = {

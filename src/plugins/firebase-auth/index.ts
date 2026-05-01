@@ -1,4 +1,4 @@
-import { buildAppIntegration } from '../../engine/appBuilder.js';
+import { buildAppIntegration } from '../../engine/builders/appBuilder.js';
 import { PluginContext, SetupPlugin } from '../../types/plugin.js';
 
 const firebaseAuthPlugin: SetupPlugin = {
