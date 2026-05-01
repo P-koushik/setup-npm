@@ -2,7 +2,7 @@ import { execSync } from 'child_process';
 import fs from 'fs-extra';
 import path from 'path';
 import ora from 'ora';
-import { FrontendConfig } from '../types/frontend-config.js';
+import { FrontendConfig } from '../../types/frontend-config.js';
 
 export async function buildFrontend(config: FrontendConfig) {
   const spinner = ora('Creating frontend project...').start();

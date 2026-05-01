@@ -1,4 +1,4 @@
-import { buildBackend } from '../engine/backendBuilder.js';
+import { buildBackend } from '../engine/builders/backendBuilder.js';
 import { runDoctor } from '../engine/doctor/index.js';
 import { BackendConfig } from '../types/backend-config.js';
 import {
