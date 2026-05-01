@@ -2,11 +2,12 @@ import fs from 'fs-extra';
 import ora from 'ora';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { AddConfig } from '../types/add-config.js';
+import { AddConfig } from '../../types/add-config.js';
 
 const templatesRoot = resolveTemplateRoot([
   fileURLToPath(new URL('../templates', import.meta.url)),
-  fileURLToPath(new URL('../../templates', import.meta.url))
+  fileURLToPath(new URL('../../templates', import.meta.url)),
+  fileURLToPath(new URL('../../../templates', import.meta.url))
 ]);
 
 export async function addFeature(config: AddConfig) {

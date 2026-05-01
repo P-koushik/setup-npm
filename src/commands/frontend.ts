@@ -1,5 +1,5 @@
 import { runDoctor } from '../engine/doctor/index.js';
-import { buildFrontend } from '../engine/frontendBuilder.js';
+import { buildFrontend } from '../engine/builders/frontendBuilder.js';
 import { FrontendConfig } from '../types/frontend-config.js';
 import {
   hasFlag,
