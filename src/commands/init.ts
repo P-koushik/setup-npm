@@ -948,12 +948,13 @@ async function wireMonorepoFrontend(
   const webDir = path.join(rootDir, 'apps', webDirName);
 
   await addWorkspaceDependencies(path.join(webDir, 'package.json'), {
-    name: 'web',
+    name: frontendConfig.platform === 'native' ? 'mobile' : 'web',
     dependencies: {
       [`@${scope}/types`]: '*',
       [`@${scope}/models`]: '*'
     }
   });
+  await ensureWorkspaceDevScript(path.join(webDir, 'package.json'));
 
   if (frontendConfig.framework === 'next') {
     await fs.writeFile(
@@ -998,6 +999,23 @@ async function addWorkspaceDependencies(
     }
   }
 
+  await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
+}
+
+async function ensureWorkspaceDevScript(packageJsonPath: string) {
+  if (!(await fs.pathExists(packageJsonPath))) {
+    return;
+  }
+
+  const packageJson = (await fs.readJson(packageJsonPath)) as {
+    scripts?: Record<string, string>;
+  };
+
+  if (!packageJson.scripts?.start || packageJson.scripts.dev) {
+    return;
+  }
+
+  packageJson.scripts.dev = packageJson.scripts.start;
   await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
 }
 
