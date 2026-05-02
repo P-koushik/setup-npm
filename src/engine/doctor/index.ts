@@ -1,6 +1,6 @@
-import { execFileSync } from 'child_process';
 import { BackendConfig } from '../../types/backend-config.js';
 import { FrontendConfig } from '../../types/frontend-config.js';
+import { runCommandProbe } from '../../utils/exec.js';
 
 type PackageManager = NonNullable<FrontendConfig['packageManager']>;
 
@@ -283,11 +283,8 @@ function installCommand(packageManager: PackageManager): string {
 
 function findAvailableCommand(commands: string[]) {
   for (const command of commands) {
-    try {
-      execFileSync(command, ['--version'], { stdio: 'ignore' });
+    if (runCommandProbe(command).ok) {
       return command;
-    } catch {
-      continue;
     }
   }
 

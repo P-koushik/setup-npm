@@ -4,6 +4,7 @@ import ora from 'ora';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { BackendConfig } from '../../types/backend-config.js';
+import { commandExists } from '../../utils/exec.js';
 
 const templatesRoot = resolveTemplateRoot([
   fileURLToPath(new URL('../templates/backend', import.meta.url)),
@@ -179,11 +180,8 @@ function getPythonCommand(): string | null {
       : ['python3', 'python'];
 
   for (const candidate of candidates) {
-    try {
-      execSync(`${candidate} --version`, { stdio: 'ignore' });
+    if (commandExists(candidate, ['--version'])) {
       return candidate;
-    } catch {
-      continue;
     }
   }
 
@@ -201,11 +199,8 @@ function getMavenCommand(): string | null {
     process.platform === 'win32' ? ['mvn.cmd', 'mvn'] : ['mvn'];
 
   for (const candidate of candidates) {
-    try {
-      execSync(`${candidate} -v`, { stdio: 'ignore' });
+    if (commandExists(candidate, ['-v'])) {
       return candidate;
-    } catch {
-      continue;
     }
   }
 
